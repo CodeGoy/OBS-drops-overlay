@@ -1,0 +1,8 @@
+Website = "https://gitlab.com/codegoy/obs-drops-overlay"
+
+[Details]
+  Icon = "Icon.png"
+  Name = "OBS-drops-overlay"
+  ID = "codegoy.obs.overlay"
+  Version = "1.5"
+  Build = 45

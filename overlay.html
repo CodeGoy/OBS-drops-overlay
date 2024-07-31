@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>drops-overlay v{{ .Version }}</title>
+    <style>
+        html, body {
+            background-color: transparent;
+            color: white;
+            overflow: hidden;
+        }
+        #videoDiv {
+            background-color: #000000;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        video {
+            width: 100vw;
+            max-height: 100vh;
+            background-color: #000000;
+            left: 50%;
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .show {
+            opacity: 1;
+            transition: opacity 50ms linear;
+        }
+        .hide {
+            opacity: 0;
+            transition: opacity 50ms linear;
+        }
+    </style>
+</head>
+<body>
+<div id="videoDiv" class="hide">
+    <video id="videoEm" src="" onended="videoControl('', false)"></video>
+</div>
+<script>
+    console.log("Version: {{ .Version }}");
+    let host = location.host;
+    let wsAddress = `ws://${host}/overlayWS`;
+    let assetUrl = `http://${host}/assets?file=`
+    let cws;
+    let connectionStatus = false;
+    let playingAudio = [];
+    let playingMusic;
+    let audioVol = 0.8;
+    let audioPlaybackRate = 1.0;
+    let videoPlaybackRate = 1.0;
+    let musicVol = 0.8;
+    let videoVol = 0.8;
+    let vidDiv = document.getElementById("videoDiv");
+    let vid = document.getElementById("videoEm");
+    let videoControl = (data, show) => {
+        if (data.length > 0) {
+            vid.src = data;
+        }
+        if (show) {
+            vidDiv.classList.remove("hide");
+            vidDiv.classList.add("show");
+            vid.play();
+            vid.playbackRate = videoPlaybackRate;
+            vid.volume = videoVol;
+        } else {
+            vid.pause()
+            vid.src = "";
+            vidDiv.classList.remove("show");
+            vidDiv.classList.add("hide");
+        }
+    };
+    let processControlMessage = (msg) => {
+        //console.log(msg);
+        let jd;
+        try {
+            jd = JSON.parse(msg.data);
+        }
+        catch (e) {
+            reportError("Error parsing json", e);
+            console.log("Error parsing json:", e);
+            return;
+        }
+        let action = jd["action"];
+        let key = jd["key"];
+        let value = jd["value"];
+        switch (action) {
+            case "video":
+                switch (key) {
+                    case "play":
+                        if (`${value}`.includes("https://")||`${value}`.includes("http://")) {
+                            videoControl(`${value}`, true);
+                        } else {
+                            videoControl(`${assetUrl}${value}`, true);
+                        }
+                        break;
+                    case "stop":
+                        videoControl("", false);
+                        break;
+                    case "pr":
+                        if (vid.paused) {
+                            vid.play();
+                        } else {
+                            vid.pause();
+                        }
+                        break;
+                    case "seek":
+                        vid.currentTime = value;
+                        break;
+                }
+                break;
+            case "music":
+                switch (key) {
+                    case "play":
+                        if (playingMusic != null) {
+                            playingMusic.pause();
+                            playingMusic = null;
+                        }
+                        playingMusic = new Audio(`${assetUrl}${value}`);
+                        playingMusic.volume = musicVol;
+                        playingMusic.play();
+                        break;
+                    case "seek":
+                        playingMusic.currentTime = value;
+                        break;
+                    case "stop":
+                        playingMusic.pause();
+                        playingMusic = null;
+                        break;
+                }
+                break;
+            case "audio":
+                switch (key) {
+                    case "play":
+                        let na = new Audio(`${assetUrl}${value}`);
+                        playingAudio.push(na);
+                        na.playbackRate = audioPlaybackRate;
+                        na.volume = audioVol;
+                        na.play();
+                        break;
+                    case "stop":
+                        playingAudio.forEach((item) => {
+                            item.pause();
+                        });
+                        playingAudio = [];
+                        break;
+                }
+                break;
+            case "volume":
+                switch (key) {
+                    case "videoPlaybackRate":
+                        videoPlaybackRate = value;
+                        vid.playbackRate = value;
+                        break;
+                    case "playbackRate":
+                        audioPlaybackRate = value;
+                        playingAudio.forEach((item) => {
+                            item.playbackRate = audioPlaybackRate;
+                        });
+                        break;
+                    case "videoVolume":
+                        //console.log("videoVolume")
+                        videoVol = value;
+                        vid.volume = value;
+                        break;
+                    case "musicVolume":
+                        musicVol = value;
+                        playingMusic.volume = musicVol;
+                        break;
+                    case "audioVolume":
+                        audioVol = value;
+                        playingAudio.forEach((item) => {
+                            item.volume = value;
+                        });
+                        break;
+
+                    default:
+                        reportError(`processControlMessage->volume:switch fell through`, key);
+                        console.log("you done fucked up -> processControlMessage:volume");
+                }
+                break;
+        }
+    };
+
+    let reportError = (info, error) => {
+        console.log(info, error);
+        cws.send(JSON.stringify({action: "error", key: info, value: error}));
+    };
+    let connect = () => {
+        console.log(`connecting to ${wsAddress}`);
+        cws = new WebSocket(wsAddress);
+        cws.onopen = function() {
+            connectionStatus = true;
+            console.log(`connected to ${wsAddress}`);
+        }
+        cws.onmessage = function(event) {processControlMessage(event, false)};
+        cws.onclose = function(e) {
+            connectionStatus = false;
+            console.log('Socket is closed. Reconnect will be attempted in 5 second(s).', e.reason);
+            cws = null;
+        };
+        cws.onerror = function(err) {
+            console.error('Socket encountered error: ', err.message, 'Closing socket');
+            cws.close();
+        };
+    };
+    window.addEventListener('load', () => {
+        console.log('All assets are loaded');
+        connect();
+    })
+    setInterval(() => {
+        if (!connectionStatus) {
+            console.log("Socket is closed, connecting...");
+            connect();
+        }
+    }, 5000);
+    setInterval(() => {
+        cws.send(JSON.stringify({action: "status", key: "connection", value: "connected"}));
+        if (playingMusic != null) {
+            cws.send(JSON.stringify({action: "music", key: "progress", value: playingMusic.currentTime}));
+            cws.send(JSON.stringify({action: "music", key: "duration", value: playingMusic.duration}));
+        }
+        if (vid.currentTime > 0 && !vid.paused && !vid.ended && vid.readyState > 2) {
+            cws.send(JSON.stringify({action: "video", key: "progress", value: vid.currentTime}));
+            cws.send(JSON.stringify({action: "video", key: "duration", value: vid.duration}));
+        }
+    }, 500);
+</script>
+</body>
+</html>
