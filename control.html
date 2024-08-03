@@ -15,19 +15,19 @@
         #videoProgress, #musicProgress {
             width: 95%;
         }
-        #setEm, #contentEm{
+        #leftEM, #rightEM{
             background-color: black;
             border: red 1px solid;
             width: 50%;
             position: fixed;
-            overflow: scroll;
+            overflow: auto;
         }
-        #setEm {
+        #leftEM {
             height: 100%;
             top: 0;
             left: 0;
         }
-        #contentEm {
+        #rightEM {
             top: 0;
             right: 0;
             height: 100%
@@ -59,18 +59,35 @@
             margin: 5px;
         }
         .controlSubDiv {
+            padding-bottom: 10px;
             border: red 1px solid;
         }
     </style>
     <title>drops-control v{{ .Version }}</title>
 </head>
 <body>
-    <div id="setEm">
+    <div id="leftEM">
         <div id="status">
             <span id="connectionStatus"></span>
             <br>
             <span id="overlayStatus"></span>
         </div>
+        <h1 style="margin: 0">Audio</h1>
+        <div id="audioControl" class="controlSubDiv">
+            <button onclick="stopAudio('audio')">Stop audio</button>
+            <label for="audioVolume">Audio Volume</label><input type="range" value=1.0 step=0.01 max=1 min=0 id="audioVolume" onchange="setVolume(document.getElementById('audioVolume').value, 'audioVolume')">
+            <br>
+            <label for="playbackRate">playbackRate</label><input type="range" value=1.0 step=0.1 max=2.0 min=0.4 id="playbackRate" onchange="let pvr = document.getElementById('playbackRate').value;setVolume(pvr, 'playbackRate');document.getElementById('playbackRateValue').innerText = pvr"> <span id="playbackRateValue">1.0</span>   <button onclick="setVolume('1', 'playbackRate');document.getElementById('playbackRate').value = 1;document.getElementById('playbackRateValue').innerText = '1'">[1.0]</button>
+        </div>
+        <div id="dropsAudio"></div>
+    </div>
+    <div id="rightEM">
+        <div style="float: right">
+            <button onclick="openUpload();">Upload</button>
+            <button onclick="load();">Reload</button>
+
+        </div>
+        <h1 style="margin: 0">Video</h1>
         <div id="videoControl" class="controlSubDiv">
             <label for="vid">videoFile/Url:</label>
             <input value="" type="text" id="vid">
@@ -79,21 +96,25 @@
             <button onclick="sendVideo(document.getElementById('vid').value)">send vid</button>
             <button onclick="sendControlMessage('video', 'pr', '');">vid pause/resume</button>
             <br>
-            <label for="videoPlaybackRate">Video Playback Rate</label><input type="range" value=1.0 step=0.2 max=2 min=0.2 id="videoPlaybackRate" onchange="let vprv = document.getElementById('videoPlaybackRate').value;setVolume(vprv, 'videoPlaybackRate');document.getElementById('videoPlaybackRateValue').innerText = vprv;"><span id="videoPlaybackRateValue">1</span><button onclick="setVolume('1', 'videoPlaybackRate');document.getElementById('videoPlaybackRate').value = 1;document.getElementById('videoPlaybackRateValue').innerText = '1'">[1.0]</button>
+
+            <label for="videoPlaybackRate">Video Playback Rate</label>
+            <input type="range" value=1.0 step=0.2 max=2 min=0.2 id="videoPlaybackRate" onchange="let vprv = document.getElementById('videoPlaybackRate').value;setVolume(vprv, 'videoPlaybackRate');document.getElementById('videoPlaybackRateValue').innerText = vprv;">
+            <span id="videoPlaybackRateValue">1</span>
+            <button onclick="setVolume('1', 'videoPlaybackRate');document.getElementById('videoPlaybackRate').value = 1;document.getElementById('videoPlaybackRateValue').innerText = '1'">[1.0]</button>
+
             <br>
-            <label for="videoVolume">Video Volume</label><input type="range" value=1.0 step=0.1 max=1 min=0 id="videoVolume" onchange="setVolume(document.getElementById('videoVolume').value, 'videoVolume')">
+
+            <label for="videoVolume">Video Volume</label>
+            <input type="range" value=1.0 step=0.1 max=1 min=0 id="videoVolume" onchange="setVolume(document.getElementById('videoVolume').value, 'videoVolume')">
+
             <br>
             <label for="videoProgress">videoProgress:<span id="videoProgressIntEm"></span></label><input type="range" min=0  step=0.01 max=10 id="videoProgress" onchange="sendControlMessage('video', 'seek', document.getElementById('videoProgress').value);">
         </div>
-        <div id="audioControl" class="controlSubDiv">
-            <button onclick="stopAudio('audio')">Stop audio</button>
-            <label for="audioVolume">Audio Volume</label><input type="range" value=1.0 step=0.01 max=1 min=0 id="audioVolume" onchange="setVolume(document.getElementById('audioVolume').value, 'audioVolume')">
-            <br>
-            <label for="playbackRate">playbackRate</label><input type="range" value=1.0 step=0.1 max=2.0 min=0.4 id="playbackRate" onchange="setVolume(document.getElementById('playbackRate').value, 'playbackRate')">
-        </div>
+        <div id="dropsVideo"></div>
+        <h1 style="margin: 0">Music</h1>
         <div id="musicControl" class="controlSubDiv">
             <button onclick="sendControlMessage('music', 'stop', '');clearInterval(cpi);">Stop Music</button>
-            <label for="musicVolume">Music Volume</label><input type="range" value=0.6 step=0.01 max=1 min=0 id="musicVolume" onchange="setVolume(document.getElementById('musicVolume').value, 'musicVolume')">
+            <label for="musicVolume">Music Volume</label><input type="range" value=0.2 step=0.1 max=1 min=0 id="musicVolume" onchange="setVolume(document.getElementById('musicVolume').value, 'musicVolume')">
             <button style="float: right" onclick="continuousPlay(0)">loop all</button>
             <br>
             <span id="musicCurrentFilename"></span>
@@ -101,11 +122,6 @@
             <br>
             <label for="musicProgress">musicProgress:<span id="musicProgressIntEm"></span></label><input type="range" min=0  step=0.01 max=10 id="musicProgress" onchange="sendControlMessage('music', 'seek', document.getElementById('musicProgress').value);">
         </div>
-    </div>
-    <div id="contentEm">
-        <button onclick="load();">Reload</button>
-        <div id="dropsAudio"></div>
-        <div id="dropsVideo"></div>
         <div id="music"></div>
     </div>
     <script>
@@ -134,6 +150,12 @@
         let next = false;
         let cpi;
         let ws;
+        function openUpload() {
+            document.body.insertAdjacentHTML("beforeend",`<div id="uploadDiv" style="position: fixed;right: 0;top: 0;background-color: black;width: 50%;height: 85%">
+    <button onclick="document.getElementById('uploadDiv').remove()" style="float: right;position: fixed">close</button>
+    <iframe style="height: 100%;width: 100%" src="/uploadAsset"></iframe>
+</div>`)
+        }
         function timeFix(seconds) {
             const date = new Date(0);
             date.setSeconds(seconds);
@@ -154,7 +176,7 @@
                     }
                     continuousPlay(position);
                 }
-            }, 1000)
+            }, 1000);
         };
         let processMessage = (msg) => {
             let pj;
@@ -185,7 +207,7 @@
                             videoProgressDuration = value;
                             break;
                     }
-                    videoProgressIntEm.innerText = `${timeFix(videoProgressCurrent)}/${timeFix(videoProgressDuration)}`
+                    videoProgressIntEm.innerText = `${timeFix(videoProgressCurrent)}/${timeFix(videoProgressDuration)}`;
                     break;
                 case "music":
                     switch (key) {
@@ -198,37 +220,38 @@
                             musicProgressDuration = value;
                             break;
                     }
-                    musicProgressIntEm.innerText = `${timeFix(musicProgressCurrent)}/${timeFix(musicProgressDuration)}`
+                    musicProgressIntEm.innerText = `${timeFix(musicProgressCurrent)}/${timeFix(musicProgressDuration)}`;
                     break;
                 case "error":
                     console.log(`ERROR:: action = ${action} : key = ${key} : value = : ${value}`);
+                    alert("overlay returned an error, check console output");
             }
         };
         let connect = () => {
-            console.log(`connecting to ${wsAddress}`)
+            console.log(`connecting to ${wsAddress}`);
             ws = new WebSocket(wsAddress);
             ws.onopen = function() {
                 connectionStatus = true;
                 setStatus();
-                console.log(`connected to ${wsAddress}`)
-            }
-            ws.onmessage = function(event) {processMessage(event)}
+                console.log(`connected to ${wsAddress}`);
+            };
+            ws.onmessage = function(event) {processMessage(event)};
             ws.onclose = function() {
                 connectionStatus = false;
                 setStatus();
                 console.log('Socket is closed. Reconnect will be attempted in 5 second(s).');
                 ws = null;
-            }
+            };
             ws.onerror = function(err) {
                 console.error('Socket encountered error: ', err.message, 'Closing socket');
                 ws.close();
-            }
+            };
         };
         let sendControlMessage = (action, key, value) => {
             ws.send(JSON.stringify({action: action, key: key, value: value}));
         };
         let sendVideo = (url) => {
-            sendControlMessage("video", "play", url)
+            sendControlMessage("video", "play", url);
         };
         let setStatus = () => {
             try {
@@ -248,14 +271,14 @@
                 }
             }
             catch (e) {
-                console.log("failed to get element")
+                console.log("failed to get element");
             }
         }
         let sendAudio = (url) => {
-            sendControlMessage("audio", "play", url)
+            sendControlMessage("audio", "play", url);
         };
         let stopAudio = (type) => {
-            sendControlMessage("audio", "stop", type)
+            sendControlMessage("audio", "stop", type);
         }
         let setVolume = (level, type) => {
             sendControlMessage("volume", type, level);
@@ -315,11 +338,8 @@
         };
         let load = () => {
             musicEm.innerHTML = "";
-            musicEm.insertAdjacentHTML("beforeend", "<p>Music</p>");
             audioDropEm.innerHTML = "";
-            audioDropEm.insertAdjacentHTML("beforeend", "<p>Audio</p>");
             videoDropEm.innerHTML = "";
-            videoDropEm.insertAdjacentHTML("beforeend", "<p>Video</p>");
             loadDrops();
             loadMusic();
         };

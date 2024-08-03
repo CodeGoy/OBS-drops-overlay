@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>UploadAsset v{{ .Version }}</title>
+    <style>
+        html {
+            text-align: center;
+            background-color: black;
+            color: lime;
+        }
+        form {
+            display: inline;
+        }
+        progress::-moz-progress-bar { background: lime; }
+        progress::-webkit-progress-value { background: lime; }
+        progress {
+            width: 99%;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            background-color: black;
+            color: lime;
+        }
+        button, input[type=file]::file-selector-button, select {
+            background-color: black;
+            color: lime;
+            border: lime solid 1px;
+        }
+    </style>
+</head>
+<body>
+    <h2 id="fileDrop">Drag file >here< to upload</h2>
+    <form name="formInput" id="upload_form" enctype="multipart/form-data" method="post">
+        <input type="file" name="file1" id="file1" value="">
+    </form>
+    <button onclick="uploadFile(document.getElementById('file1').files[0])">Upload</button>
+    <br>
+    <label>
+        location
+        <select id="locationSelect">
+            <option>drops</option>
+            <option>music</option>
+        </select>
+    </label>
+    <br>
+    <progress id="progressBar" value="0" max="100"></progress>
+    <h3 id="status">Status: Nil</h3>
+    <p id="loaded_n_total">Uploaded: 0.00 B / 0.00 B</p>
+<script>
+    let uploadLocation = document.getElementById("locationSelect");
+    let status = document.getElementById("status");
+    let fileEm = document.getElementById("file1");
+    let lnt = document.getElementById("loaded_n_total");
+    let progressBar = document.getElementById("progressBar");
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    function uploadFile(file) {
+        console.log(file, uploadLocation.value);
+        progressBar.value = 0;
+        let fd = new FormData();
+        fd.append("file", file);
+        let xr = new XMLHttpRequest();
+        xr.upload.addEventListener("progress", progressHandler, false);
+        xr.addEventListener("load", completeHandler, false);
+        xr.addEventListener("error", errorHandler, false);
+        xr.addEventListener("abort", abortHandler, false);
+        xr.open("POST", "/upload?loc="+uploadLocation.value);
+        xr.send(fd);
+    }
+    // formatBytes // https://stackoverflow.com/a/18650828
+    function formatBytes(bytes, precision = 2) {
+        if (!+bytes) return '0.00 B'
+        const k = 1024
+        const dm = precision < 0 ? 0 : precision
+        const i = Math.floor(Math.log(bytes) / Math.log(k))
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+    }
+    function progressHandler(event) {
+        lnt.innerHTML = "Uploaded: " + formatBytes(event.loaded) + " / " + formatBytes(event.total);
+        let percent = (event.loaded / event.total) * 100;
+        progressBar.value = Math.round(percent);
+        status.innerHTML = Math.round(percent) + "% uploaded... please wait";
+    }
+    function completeHandler(event) {
+        status.innerHTML = "Status: Complete -> " + event.target.responseText;
+    }
+    function errorHandler(event) {
+        status.innerHTML = "Status: Upload Failed -> " + event.target.responseText;
+    }
+    function abortHandler(event) {
+        status.innerHTML = "Status: Upload Aborted -> " + event.target.responseText;
+    }
+    // Drag'n'drop file event
+    let fileDrop = document.getElementById("fileDrop");
+    fileDrop.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        fileDrop.style.color = "red";
+        console.log("entering drop area");
+    });
+    fileDrop.addEventListener("dragleave",  () => {
+        fileDrop.style.color = "green";
+        console.log("leaving drop area");
+    });
+    fileDrop.addEventListener("drop", (event) => {
+        // console.log("file dropped", event)
+        event.preventDefault();
+        if (event.dataTransfer.items) {
+            [...event.dataTransfer.items].forEach((item, i) => {
+                if (item.kind === "file") {
+                    const file = item.getAsFile();
+                    console.log(`uploading file ${file.name}`);
+                    fileEm.filename = file.name;
+                    uploadFile(file);
+                }
+            });
+        } /*else {
+            [...event.dataTransfer.files].forEach((file, i) => {
+                console.log(`… file[${i}].name = ${file.name}`);
+            });
+        }*/
+    });
+</script>
+</body>
+</html>

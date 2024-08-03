@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/gorilla/websocket"
 	"html/template"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -22,6 +23,8 @@ import (
 )
 
 var (
+	//go:embed upload.html
+	uploadHTML []byte
 	//go:embed control.html
 	controlHTML string
 	//go:embed overlay.html
@@ -36,7 +39,7 @@ var (
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
 	shorten                bool
 	columns                = 3
-	version                = "1.5.1"
+	version                = "1.6"
 	ss                     = 15
 )
 
@@ -123,6 +126,46 @@ func (s *Server) start() {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		http.ServeFile(w, r, fmt.Sprintf("%sassets/%s", assetsLocation, r.FormValue("file")))
+	})
+	http.HandleFunc("/uploadAsset", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := w.Write(uploadHTML); err != nil {
+			log.Panicf("%v\n", err)
+		}
+	})
+	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+		uploadLocation := r.FormValue("loc")
+		fmt.Printf("/upload->Method:%s\n", r.Method)
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			log.Panicf("r.FormFile(): %v\n", err)
+		}
+		file, handler, err := r.FormFile("file")
+		if err != nil {
+			log.Panicf("r.FormFile(): %v\n", err)
+		}
+		defer func() {
+			if err := file.Close(); err != nil {
+				log.Panicf("%v\v", err)
+			}
+		}()
+		uploadTargetLocation := fmt.Sprintf("%sassets/%s/%s", assetsLocation, uploadLocation, handler.Filename)
+		fmt.Println("uploadTargetLocation", uploadTargetLocation)
+		f, err := os.OpenFile(uploadTargetLocation, os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			log.Panicf("%v\n", err)
+		}
+		defer func() {
+			if err := f.Close(); err != nil {
+				log.Panicf("%v\v", err)
+			}
+		}()
+		if _, err := io.Copy(f, file); err != nil {
+			log.Panicf("%v\n", err)
+		}
+		response := fmt.Sprintf("Received File: %s", handler.Filename)
+		log.Printf(response)
+		if _, err := w.Write([]byte(response)); err != nil {
+			log.Panicf("%v\n", err)
+		}
 	})
 	http.HandleFunc("/control", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.applyTemplate(controlHTML, w); err != nil {
@@ -225,10 +268,10 @@ func (s *Server) controlsGUI(a fyne.App) {
 		w.Resize(fyne.NewSize(800, 800))
 	}
 	// TODO : add all controls...
-	ng := container.NewVBox()                               // container
-	contentGrid := container.NewHBox()                      // container
-	audioDropsGrid := container.NewGridWithColumns(columns) // container
-	videoDropsGrid := container.NewGridWithColumns(columns) // container
+	ng := container.NewVBox()
+	contentGrid := container.NewHBox()
+	audioDropsGrid := container.NewGridWithColumns(columns)
+	videoDropsGrid := container.NewGridWithColumns(columns)
 	musicGrid := container.NewGridWithColumns(columns)
 	contentGrid.Add(widget.NewButton("exit", func() {
 		os.Exit(0)
@@ -355,7 +398,7 @@ func main() {
 		statusChan:        make(chan []byte),
 	}
 	if assetsLocationOverride != "" {
-		if assetsLocationOverride[len(assetsLocationOverride):] != "/" {
+		if assetsLocationOverride[len(assetsLocationOverride)-1:] != "/" {
 			assetsLocationOverride += "/"
 		}
 		assetsLocation = assetsLocationOverride
