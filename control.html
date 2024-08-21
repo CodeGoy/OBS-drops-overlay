@@ -80,12 +80,20 @@
             <label for="playbackRate">playbackRate</label><input type="range" value=1.0 step=0.1 max=2.0 min=0.4 id="playbackRate" onchange="let pvr = document.getElementById('playbackRate').value;setVolume(pvr, 'playbackRate');document.getElementById('playbackRateValue').innerText = pvr"> <span id="playbackRateValue">1.0</span>   <button onclick="setVolume('1', 'playbackRate');document.getElementById('playbackRate').value = 1;document.getElementById('playbackRateValue').innerText = '1'">[1.0]</button>
         </div>
         <div id="dropsAudio"></div>
+        <h1 style="margin: 0">Video Loop</h1>
+        <div id="videoLoopControls" class="controlSubDiv">
+            <button onclick="videoLoopControl('start')">start</button>
+            <button onclick="videoLoopControl('stop')">stop</button>
+            <button style="float: right" onclick="videoLoopNext = true">next</button>
+        </div>
+        <div id="videoLoopTitles">
+
+        </div>
     </div>
     <div id="rightEM">
         <div style="float: right">
             <button onclick="openUpload();">Upload</button>
             <button onclick="load();">Reload</button>
-
         </div>
         <h1 style="margin: 0">Video</h1>
         <div id="videoControl" class="controlSubDiv">
@@ -96,62 +104,63 @@
             <button onclick="sendVideo(document.getElementById('vid').value)">send vid</button>
             <button onclick="sendControlMessage('video', 'pr', '');">vid pause/resume</button>
             <br>
-
             <label for="videoPlaybackRate">Video Playback Rate</label>
             <input type="range" value=1.0 step=0.2 max=2 min=0.2 id="videoPlaybackRate" onchange="let vprv = document.getElementById('videoPlaybackRate').value;setVolume(vprv, 'videoPlaybackRate');document.getElementById('videoPlaybackRateValue').innerText = vprv;">
             <span id="videoPlaybackRateValue">1</span>
             <button onclick="setVolume('1', 'videoPlaybackRate');document.getElementById('videoPlaybackRate').value = 1;document.getElementById('videoPlaybackRateValue').innerText = '1'">[1.0]</button>
-
             <br>
-
             <label for="videoVolume">Video Volume</label>
             <input type="range" value=1.0 step=0.1 max=1 min=0 id="videoVolume" onchange="setVolume(document.getElementById('videoVolume').value, 'videoVolume')">
-
             <br>
-            <label for="videoProgress">videoProgress:<span id="videoProgressIntEm"></span></label><input type="range" min=0  step=0.01 max=10 id="videoProgress" onchange="sendControlMessage('video', 'seek', document.getElementById('videoProgress').value);">
+            <label for="videoProgress">videoProgress:<span id="videoProgressIntEm"></span></label><input type="range" min=0  step=0.1 max=10 onmouseover="videoProgressInteraction = true" onmouseout="videoProgressInteraction = false" id="videoProgress" onclick="sendControlMessage('video', 'seek', document.getElementById('videoProgress').value);">
         </div>
         <div id="dropsVideo"></div>
         <h1 style="margin: 0">Music</h1>
         <div id="musicControl" class="controlSubDiv">
-            <button onclick="sendControlMessage('music', 'stop', '');clearInterval(cpi);">Stop Music</button>
+            <button onclick="sendControlMessage('music', 'stop', '');clearInterval(musicInterval);">Stop Music</button>
             <label for="musicVolume">Music Volume</label><input type="range" value=0.2 step=0.1 max=1 min=0 id="musicVolume" onchange="setVolume(document.getElementById('musicVolume').value, 'musicVolume')">
             <button style="float: right" onclick="continuousPlay(0)">loop all</button>
             <br>
             <span id="musicCurrentFilename"></span>
             <button style="float: right" onclick="next = true;">next</button>
             <br>
-            <label for="musicProgress">musicProgress:<span id="musicProgressIntEm"></span></label><input type="range" min=0  step=0.01 max=10 id="musicProgress" onchange="sendControlMessage('music', 'seek', document.getElementById('musicProgress').value);">
+            <label for="musicProgress">musicProgress:<span id="musicProgressIntEm"></span></label><input onmouseover="musicProgressInteraction = true" onmouseout="musicProgressInteraction = false" type="range" min=0  step=0.01 max=10 id="musicProgress" onclick="sendControlMessage('music', 'seek', document.getElementById('musicProgress').value);">
         </div>
         <div id="music"></div>
     </div>
     <script>
         console.log("Version: {{ .Version }}");
+        let ws;
         let host = location.host;
+        let overlayStatus = false;
+        let connectionStatus = false;
+        let latestOverlayConnectionTime;
         let listUrl = `http://${host}/list?type=`;
         let wsAddress = `ws://${host}/controlWS`;
-        let videoProgress = document.getElementById("videoProgress");
-        let videoDropEm = document.getElementById("dropsVideo");
-        let videoProgressIntEm = document.getElementById("videoProgressIntEm");
-        let videoProgressDuration;
-        let videoProgressCurrent;
-        let musicProgress = document.getElementById("musicProgress");
-        let musicProgressIntEm = document.getElementById("musicProgressIntEm");
-        let musicCurrentFilename = document.getElementById("musicCurrentFilename");
-        let musicProgressCurrent;
-        let musicProgressDuration;
-        let musicEm = document.getElementById("music");
-        let connectionStatus = false;
-        let overlayStatus = false;
-        let latestOverlayConnectionTime;
         let connectionStatusEm = document.getElementById("connectionStatus");
         let overlayStatusEm = document.getElementById("overlayStatus");
+        let videoProgressIntEm = document.getElementById("videoProgressIntEm");
+        let videoProgress = document.getElementById("videoProgress");
+        let videoProgressInteraction = false;
+        let videoDropEm = document.getElementById("dropsVideo");
+        let videoProgressDuration;
+        let videoProgressCurrent;
+        let videoLoopNext = false;
+        let videoLoopTitlesEm = document.getElementById("videoLoopTitles");
+        let videoLoopTitles = [];
+        let musicCurrentFilename = document.getElementById("musicCurrentFilename");
+        let musicProgressIntEm = document.getElementById("musicProgressIntEm");
+        let musicProgress = document.getElementById("musicProgress");
+        let musicProgressInteraction;
+        let musicEm = document.getElementById("music");
+        let musicProgressDuration;
+        let musicProgressCurrent;
+        let musicInterval;
         let audioDropEm = document.getElementById("dropsAudio");
         let audioFiles = [];
         let next = false;
-        let cpi;
-        let ws;
         function openUpload() {
-            document.body.insertAdjacentHTML("beforeend",`<div id="uploadDiv" style="position: fixed;right: 0;top: 0;background-color: black;width: 50%;height: 85%">
+            document.getElementById("rightEM").insertAdjacentHTML("beforeend",`<div id="uploadDiv" style="position: fixed;right: 0;top: 0;background-color: black;width: 50%;height: 85%">
     <button onclick="document.getElementById('uploadDiv').remove()" style="float: right;position: fixed">close</button>
     <iframe style="height: 100%;width: 100%" src="/uploadAsset"></iframe>
 </div>`)
@@ -166,10 +175,10 @@
             next = false;
             musicCurrentFilename.innerText = `${audioFiles[position]}`;
             sendControlMessage('music', 'play', `music/${audioFiles[position]}`);
-            cpi = setInterval(() => {
+            musicInterval = setInterval(() => {
                 if (musicProgressCurrent+3 > musicProgressDuration || next) {
                     next = false;
-                    clearInterval(cpi);
+                    clearInterval(musicInterval);
                     position++;
                     if (position > audioFiles.length-1) {
                         position = 0;
@@ -199,7 +208,9 @@
                 case "video":
                     switch (key) {
                         case "progress":
-                            videoProgress.value = value;
+                            if (!videoProgressInteraction) {
+                                videoProgress.value = value;
+                            }
                             videoProgressCurrent = value;
                             break;
                         case "duration":
@@ -212,7 +223,9 @@
                 case "music":
                     switch (key) {
                         case "progress":
-                            musicProgress.value = value;
+                            if (!musicProgressInteraction) {
+                                musicProgress.value = value;
+                            }
                             musicProgressCurrent = value;
                             break;
                         case "duration":
@@ -287,13 +300,13 @@
             let filenameExt = filename.substring(filename.length - 4);
             switch (filenameExt) {
                 case ".mp3":
-                    audioDropEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="sendAudio('drops/${filename}')">${filename}</button>`);
+                    audioDropEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="sendAudio('drops/${filename}')">${filename.substring(0, filename.lastIndexOf('.'))}</button>`);
                     break;
                 case ".mp4":
-                    videoDropEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="sendVideo('drops/${filename}')">${filename}</button>`);
+                    videoDropEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="sendVideo('drops/${filename}')">${filename.substring(0, filename.lastIndexOf('.'))}</button>`);
                     break;
                 case ".mkv":
-                    videoDropEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="sendVideo('drops/${filename}')">${filename}</button>`);
+                    videoDropEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="sendVideo('drops/${filename}')">${filename.substring(0, filename.lastIndexOf('.'))}</button>`);
                     break;
             }
         };
@@ -312,7 +325,7 @@
             let filenameExt = filename.substring(filename.length - 4);
             if (filenameExt === ".mp3") {
                 audioFiles.push(filename);
-                musicEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="clearInterval(cpi);sendControlMessage('music', 'play', 'music/${filename}');musicCurrentFilename.innerText = '${filename}'">${filename}</button>`);
+                musicEm.insertAdjacentHTML("beforeend", `<button id="button" onclick="clearInterval(musicInterval);sendControlMessage('music', 'play', 'music/${filename}');musicCurrentFilename.innerText = '${filename}'">${filename.substring(0, filename.lastIndexOf('.'))}</button>`);
             }
         };
         let loadMusic = () => {
@@ -322,6 +335,65 @@
             }).then(data => {
                 data["files"].forEach((value) => {
                     addMusic(value);
+                })
+            }).catch(err => {
+                console.log("error", err);
+            });
+        };
+        let videoLoopInterval;
+        let videoLoopPosition = 0;
+        function playingColor(filename) {
+            const div = document.querySelectorAll('#videoLoopTitles *');
+            div.forEach(child => {
+                child.style.color = "white";
+            });
+            let rmExt = filename.substring(0, filename.lastIndexOf('.'));
+            let ce = document.getElementById(rmExt)
+            ce.style.color = "green";
+        }
+        function videoLoopControl(action) {
+            switch (action) {
+                case "start":
+                    videoLoopPosition = 0;
+                    sendVideo(`videoLoop/${videoLoopTitles[videoLoopPosition]}`);
+                    playingColor(videoLoopTitles[videoLoopPosition]);
+                    if (videoLoopPosition>videoLoopTitles.length) {
+                        videoLoopPosition = 0;
+                    }
+                    videoLoopInterval = setInterval(() => {
+                        if (videoProgressDuration-videoProgressCurrent < 0.2 || videoLoopNext)  {
+                            videoLoopNext = false;
+                            videoLoopPosition++;
+                            if (videoLoopPosition>=videoLoopTitles.length) {
+                                videoLoopPosition = 0;
+                            }
+                            sendVideo(`videoLoop/${videoLoopTitles[videoLoopPosition]}`);
+                            playingColor(videoLoopTitles[videoLoopPosition]);
+                        }
+                    }, 150)
+                    break;
+                case "stop":
+                    clearInterval(videoLoopInterval);
+                    videoLoopPosition = 0;
+                    sendControlMessage('video', 'stop', '');
+                    break;
+            }
+        }
+        let addLoopVideo = (filename) => {
+            let filenameExt = filename.substring(filename.length - 4);
+            if (filenameExt === ".mkv" || filenameExt === ".mp4") {
+                videoLoopTitles.push(filename);
+                let rmExt = filename.substring(0, filename.lastIndexOf('.'));
+                videoLoopTitlesEm.insertAdjacentHTML("beforeend", `<button style="margin: 2px" id="${rmExt}">${rmExt}</button>`);
+            }
+        };
+        let loadLoopVideoTitles = () => {
+            videoLoopTitles = [];
+            fetch(`${listUrl}videoLoop`).then(response => {
+                return response.json();
+            }).then(data => {
+                data["files"].forEach((value) => {
+                    addLoopVideo(value);
                 })
             }).catch(err => {
                 console.log("error", err);
@@ -340,21 +412,21 @@
             musicEm.innerHTML = "";
             audioDropEm.innerHTML = "";
             videoDropEm.innerHTML = "";
+            videoLoopTitlesEm.innerHTML = "";
             loadDrops();
             loadMusic();
+            loadLoopVideoTitles();
         };
-        setInterval(() => {
-            if (!connectionStatus) {
-                console.log("Socket is closed, connecting...");
-                connect();
-            }
-        }, 5000);
         window.addEventListener('load', function() {
             console.log('All assets are loaded');
             connect();
             load();
             setInterval(() => {
                 checkConnectionStatus();
+                if (!connectionStatus) {
+                    console.log("Socket is closed, connecting...");
+                    connect();
+                }
             }, 3000);
         })
     </script>

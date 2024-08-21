@@ -12,6 +12,11 @@ Controlled by a webserver the overlay can be controlled from a tablet or phone.
 * control playbackRate from 0.2 - 2.0 (in 0.2 increments)
 * loads local files and urls
 
+### Video Loop
+* drop videos can be played while looping video
+* plays all videos in videoLoop directory in a loop forever
+* loop continues until stop is pressed
+
 ### Audio player
 * plays mp3 files
 * volume control effects all playing sounds
@@ -37,11 +42,13 @@ $PWD
       ├─drops  ## audio and video drops
       │   ├─audio-drop0.mp3
       │   ├─audio-drop1.mp3
-      │   ├─video-drop1.mkv
-      │   └─video-drop0.mp4   
-      └─music  ## music
-          └─music0.mp3
-      
+      │   ├─video-drop0.mkv
+      │   └─video-drop1.mp4   
+      ├─music  ## music
+      │   └─music0.mp3
+      └─videoLoop   ## looped video 
+          ├─00_video.mp4
+          └─01_video.mp4
 ``` 
 * $PWD is the programs root directory 
 * audio and video drops go in drops

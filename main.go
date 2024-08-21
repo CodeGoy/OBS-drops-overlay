@@ -39,7 +39,7 @@ var (
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
 	shorten                bool
 	columns                = 3
-	version                = "1.6"
+	version                = "2.0"
 	ss                     = 15
 )
 
@@ -79,7 +79,7 @@ func listDir(path string) (files []string, err error) {
 	//fmt.Printf("listDir()->Path: %s\n", path)
 	var pathContents []os.DirEntry
 	if pathContents, err = os.ReadDir(path); err != nil {
-		return nil, fmt.Errorf("Error reading dir %s: %v", path, err)
+		return nil, fmt.Errorf("error reading dir %s: %v", path, err)
 	} else {
 		for _, entry := range pathContents {
 			for _, ext := range mediaExt {
@@ -361,7 +361,7 @@ func main() {
 	flag.StringVar(&port, "port", "8605", "port to listen on")
 	flag.StringVar(&assetsLocationOverride, "path", "", "override file location")
 	flag.BoolVar(&enableGui, "gui", false, "show gui non windows os")
-	flag.BoolVar(&androidGui, "dev", false, "show android gui on desktop (for dev)")
+	flag.BoolVar(&androidGui, "android", false, "show android gui on desktop (for dev)")
 	flag.BoolVar(&shorten, "short", false, "shorten button labels(makes android app look better)")
 	flag.Parse()
 	var ip string
@@ -386,6 +386,7 @@ func main() {
 			return ""
 		}()
 	}
+	// Can not trust a "Windows User" to know command line args or anything about technology in general, your welcome normie... #documentation
 	if runtime.GOOS == "windows" {
 		enableGui = true
 	}

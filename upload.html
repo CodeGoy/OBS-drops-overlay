@@ -40,6 +40,7 @@
         <select id="locationSelect">
             <option>drops</option>
             <option>music</option>
+            <option>videoLoop</option>
         </select>
     </label>
     <br>
@@ -94,14 +95,11 @@
     fileDrop.addEventListener("dragover", (e) => {
         e.preventDefault();
         fileDrop.style.color = "red";
-        console.log("entering drop area");
     });
     fileDrop.addEventListener("dragleave",  () => {
         fileDrop.style.color = "green";
-        console.log("leaving drop area");
     });
     fileDrop.addEventListener("drop", (event) => {
-        // console.log("file dropped", event)
         event.preventDefault();
         if (event.dataTransfer.items) {
             [...event.dataTransfer.items].forEach((item, i) => {
@@ -112,11 +110,7 @@
                     uploadFile(file);
                 }
             });
-        } /*else {
-            [...event.dataTransfer.files].forEach((file, i) => {
-                console.log(`… file[${i}].name = ${file.name}`);
-            });
-        }*/
+        }
     });
 </script>
 </body>

@@ -29,11 +29,11 @@
         }
         .show {
             opacity: 1;
-            transition: opacity 50ms linear;
+            transition: opacity 150ms linear;
         }
         .hide {
             opacity: 0;
-            transition: opacity 50ms linear;
+            transition: opacity 150ms linear;
         }
     </style>
 </head>
@@ -53,7 +53,7 @@
     let audioVol = 0.8;
     let audioPlaybackRate = 1.0;
     let videoPlaybackRate = 1.0;
-    let musicVol = 0.8;
+    let musicVol = 0.2;
     let videoVol = 0.8;
     let vidDiv = document.getElementById("videoDiv");
     let vid = document.getElementById("videoEm");
@@ -177,7 +177,6 @@
                             item.volume = value;
                         });
                         break;
-
                     default:
                         reportError(`processControlMessage->volume:switch fell through`, key);
                         console.log("you done fucked up -> processControlMessage:volume");
@@ -228,7 +227,7 @@
             cws.send(JSON.stringify({action: "video", key: "progress", value: vid.currentTime}));
             cws.send(JSON.stringify({action: "video", key: "duration", value: vid.duration}));
         }
-    }, 500);
+    }, 100);
 </script>
 </body>
 </html>
