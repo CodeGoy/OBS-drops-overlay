@@ -35,19 +35,19 @@ var (
 	assetsLocation         string
 	controlLink            string
 	overlayLink            string
-	androidGui             bool // show android gui
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
 	shorten                bool
 	columns                = 3
-	version                = "2.0"
+	version                = "9.1"
 	ss                     = 15
 )
 
 type Server struct {
-	websocketUpgrader websocket.Upgrader
-	port              string
-	controlChan       chan []byte
-	statusChan        chan []byte
+	websocketUpgrayeddr         websocket.Upgrader
+	overlayWebsocketConnections map[string]*websocket.Conn
+	port                        string
+	controlChan                 chan []byte
+	statusChan                  chan []byte
 }
 
 type Message struct {
@@ -79,6 +79,9 @@ func listDir(path string) (files []string, err error) {
 	//fmt.Printf("listDir()->Path: %s\n", path)
 	var pathContents []os.DirEntry
 	if pathContents, err = os.ReadDir(path); err != nil {
+		if err := makeDir(path); err != nil {
+			log.Printf("error: makeDir(%s): %v\n", path, err)
+		}
 		return nil, fmt.Errorf("error reading dir %s: %v", path, err)
 	} else {
 		for _, entry := range pathContents {
@@ -104,6 +107,24 @@ func (s *Server) applyTemplate(htmlString string, w http.ResponseWriter) error {
 		return fmt.Errorf("ERROR::t.Execute(w, &t)::%v\n", err)
 	}
 	return nil
+}
+
+func (s *Server) overlayMessageSender() {
+	for {
+		controlMessage := <-s.controlChan
+		if len(s.overlayWebsocketConnections) == 0 {
+			fmt.Printf("No websocket connections found, message is ignored: %s\n", controlMessage)
+			continue
+		}
+		for key, value := range s.overlayWebsocketConnections {
+			if err := value.WriteMessage(1, controlMessage); err != nil {
+				log.Printf("error writing message to %s: %v\n", key, err)
+				if err := s.overlayWebsocketConnections[key].Close(); err != nil {
+					log.Printf("Error closing /overlayWS connection: %v\n", err)
+				}
+			}
+		}
+	}
 }
 
 func (s *Server) start() {
@@ -177,37 +198,38 @@ func (s *Server) start() {
 			log.Fatalf("%v", err)
 		}
 	})
+	// TODO : websocket sessions \/
 	http.HandleFunc("/overlayWS", func(w http.ResponseWriter, r *http.Request) {
-		s.websocketUpgrader.CheckOrigin = func(r *http.Request) bool { return true }
-		conn, err := s.websocketUpgrader.Upgrade(w, r, nil)
+		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
+		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
+		s.overlayWebsocketConnections[r.RemoteAddr] = conn
 		defer func() {
 			fmt.Println("closing /overlayWS websocket connection")
-			if err := conn.Close(); err != nil {
+			if err := s.overlayWebsocketConnections[r.RemoteAddr].Close(); err != nil {
 				log.Printf("Error closing /overlayWS connection: %v\n", err)
 			}
-		}()
-		go func() {
-			for {
-				_, msg, err := conn.ReadMessage()
-				if err != nil {
-					log.Printf("/overlayWS: %v\n", err)
-					return
-				}
-				s.statusChan <- msg
-			}
+			delete(s.overlayWebsocketConnections, r.RemoteAddr)
+			fmt.Printf("websocket connections: %d -> %v\n", len(s.overlayWebsocketConnections), s.overlayWebsocketConnections)
 		}()
 		for {
-			if err = conn.WriteMessage(1, <-s.controlChan); err != nil {
+			_, msg, err := s.overlayWebsocketConnections[r.RemoteAddr].ReadMessage()
+			if err != nil {
+				log.Printf("/overlayWS: %v\n", err)
+				if err := s.overlayWebsocketConnections[r.RemoteAddr].Close(); err != nil {
+					log.Printf("Error closing /overlayWS connection: %v\n", err)
+				}
 				return
 			}
+			s.statusChan <- msg
 		}
 	})
 	http.HandleFunc("/controlWS", func(w http.ResponseWriter, r *http.Request) {
-		s.websocketUpgrader.CheckOrigin = func(r *http.Request) bool { return true }
-		conn, err := s.websocketUpgrader.Upgrade(w, r, nil)
+		fmt.Printf("controlWS: %v\n", r.RemoteAddr)
+		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
+		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
@@ -251,22 +273,19 @@ func (s *Server) sendOverlayMessage(action, key, value string) {
 	s.controlChan <- js
 }
 
+func makeDir(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(path, os.ModePerm); err != nil {
+			return fmt.Errorf("Failed to create dir: %v\n", err)
+		}
+	}
+	return nil
+}
+
 func (s *Server) controlsGUI(a fyne.App) {
 	w := a.NewWindow("controls")
 	w.CenterOnScreen()
-	if runtime.GOOS == "android" {
-		baseFilePath := "/storage/self/primary/Android" // TODO : find a programmatic way to get this string
-		assetsLocation = baseFilePath + strings.Replace(strings.Replace(a.Storage().RootURI().Path(), "user/0/", "", -1), "fyne", "", -1)
-		fmt.Println("assetsLocation:", assetsLocation)
-		for _, endPAth := range []string{"assets/drops", "assets/music"} {
-			mkdirPAth := assetsLocation + endPAth
-			if err := os.MkdirAll(mkdirPAth, os.ModePerm); err != nil {
-				log.Panicf("Failed to create dir: %v\n", err)
-			}
-		}
-	} else {
-		w.Resize(fyne.NewSize(800, 800))
-	}
+	w.Resize(fyne.NewSize(800, 800))
 	// TODO : add all controls...
 	ng := container.NewVBox()
 	contentGrid := container.NewHBox()
@@ -325,14 +344,11 @@ func (s *Server) controlsGUI(a fyne.App) {
 	w.Show()
 }
 
-func (s *Server) gui() {
+func (s *Server) systray() {
 	a := app.NewWithID("codegoy.obs.overlay")
 	version = a.Metadata().Version
 	a.SetIcon(fyne.NewStaticResource("icon", icon))
-	if androidGui {
-		s.controlsGUI(a)
-		a.Run()
-	} else if desk, ok := a.(desktop.App); ok {
+	if desk, ok := a.(desktop.App); ok {
 		a.SetIcon(fyne.NewStaticResource("icon", icon))
 		w := a.NewWindow(fmt.Sprintf("OBS-drops-overlay v%s", version))
 		m := fyne.NewMenu("links",
@@ -360,32 +376,24 @@ func main() {
 	var enableGui bool
 	flag.StringVar(&port, "port", "8605", "port to listen on")
 	flag.StringVar(&assetsLocationOverride, "path", "", "override file location")
-	flag.BoolVar(&enableGui, "gui", false, "show gui non windows os")
-	flag.BoolVar(&androidGui, "android", false, "show android gui on desktop (for dev)")
+	flag.BoolVar(&enableGui, "systray", false, "show systray non windows os")
 	flag.BoolVar(&shorten, "short", false, "shorten button labels(makes android app look better)")
 	flag.Parse()
-	var ip string
-	if runtime.GOOS == "android" {
-		enableGui, androidGui, shorten = true, true, true
-		ip = "127.0.0.1" // TODO : get LocalIP from ConnectionManager in android
-		columns = 2
-	} else {
-		ip = func() string {
-			adders, err := net.InterfaceAddrs()
-			if err != nil {
-				log.Panicf("net.InterfaceAddrs:%v\n", err)
-			}
-			for _, address := range adders {
-				if inet, ok := address.(*net.IPNet); ok && !inet.IP.IsLoopback() {
-					fmt.Printf("Network Interface: %v %s\n", inet.IP, inet.String())
-					if inet.IP.To4() != nil {
-						return inet.IP.String()
-					}
+	ip := func() string {
+		adders, err := net.InterfaceAddrs()
+		if err != nil {
+			log.Panicf("net.InterfaceAddrs:%v\n", err)
+		}
+		for _, address := range adders {
+			if inet, ok := address.(*net.IPNet); ok && !inet.IP.IsLoopback() {
+				fmt.Printf("Network Interface: %v %s\n", inet.IP, inet.String())
+				if inet.IP.To4() != nil {
+					return inet.IP.String()
 				}
 			}
-			return ""
-		}()
-	}
+		}
+		return ""
+	}()
 	// Can not trust a "Windows User" to know command line args or anything about technology in general, your welcome normie... #documentation
 	if runtime.GOOS == "windows" {
 		enableGui = true
@@ -393,11 +401,13 @@ func main() {
 	controlLink = fmt.Sprintf("http://%s:%s/control", ip, port)
 	overlayLink = fmt.Sprintf("http://%s:%s/overlay", ip, port)
 	s := Server{
-		websocketUpgrader: websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
-		port:              port,
-		controlChan:       make(chan []byte),
-		statusChan:        make(chan []byte),
+		websocketUpgrayeddr:         websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
+		port:                        port,
+		controlChan:                 make(chan []byte),
+		statusChan:                  make(chan []byte),
+		overlayWebsocketConnections: make(map[string]*websocket.Conn),
 	}
+	go s.overlayMessageSender()
 	if assetsLocationOverride != "" {
 		if assetsLocationOverride[len(assetsLocationOverride)-1:] != "/" {
 			assetsLocationOverride += "/"
@@ -409,7 +419,7 @@ func main() {
 		go func() {
 			s.start()
 		}()
-		s.gui()
+		s.systray()
 	} else {
 		s.start()
 	}
