@@ -85,9 +85,9 @@
             console.log("Error parsing json:", e);
             return;
         }
-        let action = jd["action"];
-        let key = jd["key"];
-        let value = jd["value"];
+        let action = jd["a"];
+        let key = jd["k"];
+        let value = jd["v"];
         switch (action) {
             case "video":
                 switch (key) {
@@ -187,7 +187,7 @@
 
     let reportError = (info, error) => {
         console.log(info, error);
-        cws.send(JSON.stringify({action: "error", key: info, value: error}));
+        cws.send(JSON.stringify({a: "error", k: info, v: error}));
     };
     let connect = () => {
         console.log(`connecting to ${wsAddress}`);
@@ -218,14 +218,14 @@
         }
     }, 5000);
     setInterval(() => {
-        cws.send(JSON.stringify({action: "status", key: "connection", value: "connected"}));
+        cws.send(JSON.stringify({a: "status", k: "connection", v: "connected"}));
         if (playingMusic != null) {
-            cws.send(JSON.stringify({action: "music", key: "progress", value: playingMusic.currentTime}));
-            cws.send(JSON.stringify({action: "music", key: "duration", value: playingMusic.duration}));
+            cws.send(JSON.stringify({a: "music", k: "progress", v: playingMusic.currentTime}));
+            cws.send(JSON.stringify({a: "music", k: "duration", v: playingMusic.duration}));
         }
         if (vid.currentTime > 0 && !vid.paused && !vid.ended && vid.readyState > 2) {
-            cws.send(JSON.stringify({action: "video", key: "progress", value: vid.currentTime}));
-            cws.send(JSON.stringify({action: "video", key: "duration", value: vid.duration}));
+            cws.send(JSON.stringify({a: "video", k: "progress", v: vid.currentTime}));
+            cws.send(JSON.stringify({a: "video", k: "duration", v: vid.duration}));
         }
     }, 100);
 </script>

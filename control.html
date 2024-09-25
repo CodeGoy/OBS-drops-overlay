@@ -92,6 +92,7 @@
     </div>
     <div id="rightEM">
         <div style="float: right">
+            <button onclick="testOverlay();">TestFrame</button>
             <button onclick="openUpload();">Upload</button>
             <button onclick="load();">Reload</button>
         </div>
@@ -129,6 +130,14 @@
         <div id="music"></div>
     </div>
     <script>
+        let testOverlay = () => {
+            if (!document.getElementById('test')) {
+                console.log("opening test frame");
+                document.body.insertAdjacentHTML('beforeend', `<div id="test" style="position: fixed ;z-index: max()-1; bottom: 0; left: 0; width: 25%;height: 25%; border: red solid 1px; background-color: black;color: white"><iframe style="z-index: max();height: 100%; width: 100%" src="/overlay"></iframe><button onclick="document.getElementById('test').remove()" style="position: fixed ;z-index: max(); bottom: 0; left: 0; border: green solid 1px; background-color: black;color: white;">close</button></div>`);
+            } else {
+                console.log("testing frame already open");
+            }
+        };
         console.log("Version: {{ .Version }}");
         let ws;
         let host = location.host;
@@ -196,9 +205,9 @@
                 console.error("Failed to parse json", e);
                 return;
             }
-            let action = pj["action"];
-            let key = pj["key"];
-            let value = pj["value"];
+            let action = pj["a"];
+            let key = pj["k"];
+            let value = pj["v"];
             switch (action) {
                 case  "status":
                     latestOverlayConnectionTime = Date.now();
@@ -261,7 +270,7 @@
             };
         };
         let sendControlMessage = (action, key, value) => {
-            ws.send(JSON.stringify({action: action, key: key, value: value}));
+            ws.send(JSON.stringify({a: action, k: key, v: value}));
         };
         let sendVideo = (url) => {
             sendControlMessage("video", "play", url);
@@ -340,7 +349,7 @@
                 console.log("error", err);
             });
         };
-        let videoLoopInterval;
+        let videoLoopInterval = null;
         let videoLoopPosition = 0;
         function playingColor(filename) {
             const div = document.querySelectorAll('#videoLoopTitles *');
@@ -351,31 +360,39 @@
             let ce = document.getElementById(rmExt)
             ce.style.color = "green";
         }
+        let loopVideoSwitch = false;
+        function playLoopVideo(index) {
+            if (loopVideoSwitch) {
+                sendVideo(`videoLoop/${videoLoopTitles[index]}`);
+                playingColor(videoLoopTitles[index]);
+                setTimeout(() => {
+                    videoLoopInterval = setInterval(() => {
+                        if ( videoProgressCurrent > 1 && (videoProgressDuration-videoProgressCurrent < 0.1 || videoLoopNext))  {
+                            clearInterval(videoLoopInterval);
+                            videoLoopNext = false;
+                            console.log(index)
+                            let newIndex = index + 1;
+                            if (newIndex>=videoLoopTitles.length) {
+                                playLoopVideo(0);
+                            } else {
+                                playLoopVideo(newIndex);
+                            }
+                        }
+                    }, 100)
+                },1000);
+            }
+        }
+
         function videoLoopControl(action) {
             switch (action) {
                 case "start":
+                    loopVideoSwitch = true;
                     videoLoopPosition = 0;
-                    sendVideo(`videoLoop/${videoLoopTitles[videoLoopPosition]}`);
-                    playingColor(videoLoopTitles[videoLoopPosition]);
-                    if (videoLoopPosition>videoLoopTitles.length) {
-                        videoLoopPosition = 0;
-                    }
-                    videoLoopInterval = setInterval(() => {
-                        if (videoProgressDuration-videoProgressCurrent < 0.2 || videoLoopNext)  {
-                            videoLoopNext = false;
-                            videoLoopPosition++;
-                            if (videoLoopPosition>=videoLoopTitles.length) {
-                                videoLoopPosition = 0;
-                            }
-                            sendVideo(`videoLoop/${videoLoopTitles[videoLoopPosition]}`);
-                            playingColor(videoLoopTitles[videoLoopPosition]);
-                        }
-                    }, 150)
+                    playLoopVideo(0);
                     break;
                 case "stop":
-                    clearInterval(videoLoopInterval);
+                    loopVideoSwitch = false;
                     videoLoopPosition = 0;
-                    sendControlMessage('video', 'stop', '');
                     break;
             }
         }
