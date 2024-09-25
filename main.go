@@ -38,7 +38,7 @@ var (
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
 	shorten                bool
 	columns                = 3
-	version                = "9.1"
+	version                = "22.5"
 	ss                     = 15
 )
 
@@ -51,9 +51,9 @@ type Server struct {
 }
 
 type Message struct {
-	Action string `json:"action"`
-	Key    string `json:"key"`
-	Value  string `json:"value"`
+	Action string `json:"a"`
+	Key    string `json:"k"`
+	Value  string `json:"v"`
 }
 
 type FileListResponse struct {
@@ -351,6 +351,7 @@ func (s *Server) systray() {
 	if desk, ok := a.(desktop.App); ok {
 		a.SetIcon(fyne.NewStaticResource("icon", icon))
 		w := a.NewWindow(fmt.Sprintf("OBS-drops-overlay v%s", version))
+		w.SetFixedSize(true)
 		m := fyne.NewMenu("links",
 			fyne.NewMenuItem("Links", func() {
 				w.Show()
@@ -360,10 +361,9 @@ func (s *Server) systray() {
 			}),
 		)
 		desk.SetSystemTrayMenu(m)
-		ng := container.NewAdaptiveGrid(1)
-		ng.Add(widget.NewLabel(controlLink))
-		ng.Add(widget.NewLabel(overlayLink))
-		w.SetContent(ng)
+		w.SetContent(widget.NewRichTextFromMarkdown(fmt.Sprintf(`# Links
+* [%s](%s)
+* [%s](%s)`, controlLink, controlLink, overlayLink, overlayLink)))
 		w.SetCloseIntercept(func() {
 			w.Hide()
 		})
