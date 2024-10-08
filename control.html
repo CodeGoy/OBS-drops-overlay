@@ -372,7 +372,7 @@
                             videoLoopNext = false;
                             console.log(index)
                             let newIndex = index + 1;
-                            if (newIndex>=videoLoopTitles.length) {
+                            if (newIndex===videoLoopTitles.length) {
                                 playLoopVideo(0);
                             } else {
                                 playLoopVideo(newIndex);

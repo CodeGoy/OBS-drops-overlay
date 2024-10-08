@@ -4,5 +4,5 @@ Website = "https://gitlab.com/codegoy/obs-drops-overlay"
   Icon = "Icon.png"
   Name = "OBS-drops-overlay"
   ID = "codegoy.obs.overlay"
-  Version = "22.5"
-  Build = 1
+  Version = "175.3.123"
+  Build = 2

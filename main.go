@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gorilla/websocket"
@@ -19,7 +18,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 var (
@@ -38,8 +36,7 @@ var (
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
 	shorten                bool
 	columns                = 3
-	version                = "22.5"
-	ss                     = 15
+	version                = "175.3.123"
 )
 
 type Server struct {
@@ -62,17 +59,6 @@ type FileListResponse struct {
 
 type Template struct {
 	Version string
-}
-
-func shortenString(input string, length int) string {
-	if !shorten {
-		return input
-	}
-	il := len(input)
-	if il >= length && il >= 10 {
-		return input[:length-5] + "." + input[il-4:]
-	}
-	return input
 }
 
 func listDir(path string) (files []string, err error) {
@@ -133,11 +119,11 @@ func (s *Server) start() {
 		fl := fmt.Sprintf("%sassets/%s/", assetsLocation, rType)
 		music, err := listDir(fl)
 		if err != nil {
-			log.Panicf("listDir(\"%sassets/%s/\"):%v\n", assetsLocation, rType, err)
+			log.Printf("listDir(\"%sassets/%s/\"):%v\n", assetsLocation, rType, err)
 		}
 		bytes, err := json.Marshal(FileListResponse{Files: music})
 		if err != nil {
-			log.Panicf("json.Marshal(FileListResponse{Files: %s}):%v\n", rType, err)
+			log.Printf("json.Marshal(FileListResponse{Files: %s}):%v\n", rType, err)
 		}
 		if _, err := w.Write(bytes); err != nil {
 			log.Panicf("w.Write(bytes):%v\n", err)
@@ -161,7 +147,7 @@ func (s *Server) start() {
 		}
 		file, handler, err := r.FormFile("file")
 		if err != nil {
-			log.Panicf("r.FormFile(): %v\n", err)
+			log.Printf("r.FormFile(): %v\n", err)
 		}
 		defer func() {
 			if err := file.Close(); err != nil {
@@ -176,16 +162,16 @@ func (s *Server) start() {
 		}
 		defer func() {
 			if err := f.Close(); err != nil {
-				log.Panicf("%v\v", err)
+				log.Printf("%v\v", err)
 			}
 		}()
 		if _, err := io.Copy(f, file); err != nil {
-			log.Panicf("%v\n", err)
+			log.Printf("%v\n", err)
 		}
 		response := fmt.Sprintf("Received File: %s", handler.Filename)
 		log.Printf(response)
 		if _, err := w.Write([]byte(response)); err != nil {
-			log.Panicf("%v\n", err)
+			log.Printf("%v\n", err)
 		}
 	})
 	http.HandleFunc("/control", func(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +184,6 @@ func (s *Server) start() {
 			log.Fatalf("%v", err)
 		}
 	})
-	// TODO : websocket sessions \/
 	http.HandleFunc("/overlayWS", func(w http.ResponseWriter, r *http.Request) {
 		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
 		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
@@ -282,68 +267,6 @@ func makeDir(path string) error {
 	return nil
 }
 
-func (s *Server) controlsGUI(a fyne.App) {
-	w := a.NewWindow("controls")
-	w.CenterOnScreen()
-	w.Resize(fyne.NewSize(800, 800))
-	// TODO : add all controls...
-	ng := container.NewVBox()
-	contentGrid := container.NewHBox()
-	audioDropsGrid := container.NewGridWithColumns(columns)
-	videoDropsGrid := container.NewGridWithColumns(columns)
-	musicGrid := container.NewGridWithColumns(columns)
-	contentGrid.Add(widget.NewButton("exit", func() {
-		os.Exit(0)
-	}))
-	dropsDirContents, err := listDir(assetsLocation + "assets/drops")
-	if err != nil {
-		log.Panicf("Failed to list dir: %v\n", err)
-	}
-	audioDropsGrid.Add(widget.NewButton("stop audio", func() {
-		go s.sendOverlayMessage("audio", "stop", "audio")
-	}))
-	for _, f := range dropsDirContents {
-		if strings.Contains(f, ".mp3") {
-			audioDropsGrid.Add(widget.NewButton(shortenString(f[:len(f)-4], ss), func() {
-				go s.sendOverlayMessage("audio", "play", fmt.Sprintf("drops/%s", f))
-			}))
-		}
-	}
-	videoDropsGrid.Add(widget.NewButton("stop video", func() {
-		go s.sendOverlayMessage("video", "stop", "video")
-	}))
-	for _, f := range dropsDirContents {
-		if strings.Contains(f, ".mp4") || strings.Contains(f, ".mkv") {
-			videoDropsGrid.Add(widget.NewButton(shortenString(f[:len(f)-4], ss), func() {
-				go s.sendOverlayMessage("video", "play", fmt.Sprintf("drops/%s", f))
-			}))
-		}
-	}
-	musicDirContents, err := listDir(assetsLocation + "assets/music")
-	if err != nil {
-		log.Panicf("Failed to list dir: %v\n", err)
-	}
-	musicGrid.Add(widget.NewButton("stop music", func() {
-		go s.sendOverlayMessage("music", "stop", "music")
-	}))
-	for _, f := range musicDirContents {
-		if strings.Contains(f, ".mp3") {
-			musicGrid.Add(widget.NewButton(shortenString(f[:len(f)-4], ss), func() {
-				go s.sendOverlayMessage("music", "play", fmt.Sprintf("music/%s", f))
-			}))
-		}
-	}
-	ng.Add(contentGrid)
-	ng.Add(widget.NewLabel("Audio Drops"))
-	ng.Add(audioDropsGrid)
-	ng.Add(widget.NewLabel("Video Drops"))
-	ng.Add(videoDropsGrid)
-	ng.Add(widget.NewLabel("Music"))
-	ng.Add(musicGrid)
-	w.SetContent(container.NewVScroll(ng))
-	w.Show()
-}
-
 func (s *Server) systray() {
 	a := app.NewWithID("codegoy.obs.overlay")
 	version = a.Metadata().Version
@@ -355,9 +278,6 @@ func (s *Server) systray() {
 		m := fyne.NewMenu("links",
 			fyne.NewMenuItem("Links", func() {
 				w.Show()
-			}),
-			fyne.NewMenuItem("Controls", func() {
-				s.controlsGUI(a)
 			}),
 		)
 		desk.SetSystemTrayMenu(m)
@@ -377,7 +297,6 @@ func main() {
 	flag.StringVar(&port, "port", "8605", "port to listen on")
 	flag.StringVar(&assetsLocationOverride, "path", "", "override file location")
 	flag.BoolVar(&enableGui, "systray", false, "show systray non windows os")
-	flag.BoolVar(&shorten, "short", false, "shorten button labels(makes android app look better)")
 	flag.Parse()
 	ip := func() string {
 		adders, err := net.InterfaceAddrs()
@@ -394,7 +313,6 @@ func main() {
 		}
 		return ""
 	}()
-	// Can not trust a "Windows User" to know command line args or anything about technology in general, your welcome normie... #documentation
 	if runtime.GOOS == "windows" {
 		enableGui = true
 	}
