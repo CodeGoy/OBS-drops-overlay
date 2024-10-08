@@ -296,7 +296,7 @@ func main() {
 	var enableGui bool
 	flag.StringVar(&port, "port", "8605", "port to listen on")
 	flag.StringVar(&assetsLocationOverride, "path", "", "override file location")
-	flag.BoolVar(&enableGui, "systray", false, "show systray non windows os")
+	flag.BoolVar(&enableGui, "systray", false, "show systray (runs headless by default)")
 	flag.Parse()
 	ip := func() string {
 		adders, err := net.InterfaceAddrs()
