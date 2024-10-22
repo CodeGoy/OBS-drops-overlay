@@ -34,9 +34,7 @@ var (
 	controlLink            string
 	overlayLink            string
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
-	shorten                bool
-	columns                = 3
-	version                = "175.3.123"
+	version                = "265.703.618"
 )
 
 type Server struct {
@@ -45,12 +43,6 @@ type Server struct {
 	port                        string
 	controlChan                 chan []byte
 	statusChan                  chan []byte
-}
-
-type Message struct {
-	Action string `json:"a"`
-	Key    string `json:"k"`
-	Value  string `json:"v"`
 }
 
 type FileListResponse struct {
@@ -244,18 +236,6 @@ func (s *Server) start() {
 	if err := http.ListenAndServe(":"+s.port, nil); err != nil {
 		log.Printf("Error:: listenAndServe():: %v\n", err)
 	}
-}
-
-func (s *Server) sendOverlayMessage(action, key, value string) {
-	js, err := json.Marshal(Message{
-		Action: action,
-		Key:    key,
-		Value:  value,
-	})
-	if err != nil {
-		log.Printf("Error:: Failed to marshal json:: %v\n", err)
-	}
-	s.controlChan <- js
 }
 
 func makeDir(path string) error {

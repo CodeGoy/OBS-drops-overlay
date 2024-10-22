@@ -69,7 +69,6 @@
     <div id="leftEM">
         <div id="status">
             <span id="connectionStatus"></span>
-            <br>
             <span id="overlayStatus"></span>
         </div>
         <h1 style="margin: 0">Audio</h1>
@@ -78,6 +77,11 @@
             <label for="audioVolume">Audio Volume</label><input type="range" value=1.0 step=0.01 max=1 min=0 id="audioVolume" onchange="setVolume(document.getElementById('audioVolume').value, 'audioVolume')">
             <br>
             <label for="playbackRate">playbackRate</label><input type="range" value=1.0 step=0.1 max=2.0 min=0.4 id="playbackRate" onchange="let pvr = document.getElementById('playbackRate').value;setVolume(pvr, 'playbackRate');document.getElementById('playbackRateValue').innerText = pvr"> <span id="playbackRateValue">1.0</span>   <button onclick="setVolume('1', 'playbackRate');document.getElementById('playbackRate').value = 1;document.getElementById('playbackRateValue').innerText = '1'">[1.0]</button>
+            <!-- TODO : send echo delay from an input range  -->
+            <br>
+            <label for="echoChecked">Echo:<input type="checkbox" id="echoChecked"></label>
+            <label for="echoDelay">Delay:<input min="15" max="50" value="25" step="1" type="range" id="echoDelay" onchange="let edv = document.getElementById('echoDelay').value;setEchoDelay(edv);document.getElementById('echoDelayValue').innerText = edv"></label>
+            <span id="echoDelayValue"></span>
         </div>
         <div id="dropsAudio"></div>
         <h1 style="margin: 0">Video Loop</h1>
@@ -168,17 +172,17 @@
         let audioDropEm = document.getElementById("dropsAudio");
         let audioFiles = [];
         let next = false;
-        function openUpload() {
+        let openUpload = () => {
             document.getElementById("rightEM").insertAdjacentHTML("beforeend",`<div id="uploadDiv" style="position: fixed;right: 0;top: 0;background-color: black;width: 50%;height: 85%">
     <button onclick="document.getElementById('uploadDiv').remove()" style="float: right;position: fixed">close</button>
     <iframe style="height: 100%;width: 100%" src="/uploadAsset"></iframe>
 </div>`)
-        }
-        function timeFix(seconds) {
+        };
+        let timeFix = (seconds) => {
             const date = new Date(0);
             date.setSeconds(seconds);
             return date.toISOString().substring(11, 19);
-        }
+        };
         let continuousPlay = (index) => {
             let position = index;
             next = false;
@@ -272,32 +276,40 @@
         let sendControlMessage = (action, key, value) => {
             ws.send(JSON.stringify({a: action, k: key, v: value}));
         };
+        let setEchoDelay = (delay) => {
+            sendControlMessage("audio", "echoDelay", delay);
+        }
         let sendVideo = (url) => {
             sendControlMessage("video", "play", url);
         };
         let setStatus = () => {
             try {
                 if (connectionStatus) {
-                    connectionStatusEm.innerText = "Connected to server";
+                    connectionStatusEm.innerText = "Server";
                     connectionStatusEm.style.color = "green";
                 } else {
-                    connectionStatusEm.innerText = "Disconnected";
+                    connectionStatusEm.innerText = "Server";
                     connectionStatusEm.style.color = "red";
                 }
                 if (overlayStatus) {
-                    overlayStatusEm.innerText = "Overlay Connected";
+                    overlayStatusEm.innerText = "Overlay";
                     overlayStatusEm.style.color = "green";
                 } else {
-                    overlayStatusEm.innerText = "Overlay Disconnected";
+                    overlayStatusEm.innerText = "Overlay";
                     overlayStatusEm.style.color = "red";
                 }
             }
             catch (e) {
                 console.log("failed to get element");
             }
-        }
+        };
+        let echoChecked = document.getElementById("echoChecked");
         let sendAudio = (url) => {
-            sendControlMessage("audio", "play", url);
+            if (echoChecked.checked) {
+                sendControlMessage("audio", "echo", url);
+            } else {
+                sendControlMessage("audio", "play", url);
+            }
         };
         let stopAudio = (type) => {
             sendControlMessage("audio", "stop", type);
@@ -351,7 +363,7 @@
         };
         let videoLoopInterval = null;
         let videoLoopPosition = 0;
-        function playingColor(filename) {
+        let playingColor = (filename) => {
             const div = document.querySelectorAll('#videoLoopTitles *');
             div.forEach(child => {
                 child.style.color = "white";
@@ -361,20 +373,19 @@
             ce.style.color = "green";
         }
         let loopVideoSwitch = false;
-        function playLoopVideo(index) {
+        let playLoopVideo = (index) => {
             if (loopVideoSwitch) {
                 sendVideo(`videoLoop/${videoLoopTitles[index]}`);
                 playingColor(videoLoopTitles[index]);
-                setTimeout(() => {
+                setTimeout(() => { // wait for video to begin playing before starting loop interval
                     videoLoopInterval = setInterval(() => {
                         if ( videoProgressCurrent > 1 && (videoProgressDuration-videoProgressCurrent < 0.1 || videoLoopNext))  {
                             clearInterval(videoLoopInterval);
                             videoLoopNext = false;
-                            console.log(index)
-                            let newIndex = index + 1;
-                            if (newIndex===videoLoopTitles.length) {
+                            if (index===videoLoopTitles.length-1 ) {
                                 playLoopVideo(0);
                             } else {
+                                let newIndex = index + 1;
                                 playLoopVideo(newIndex);
                             }
                         }
@@ -382,8 +393,7 @@
                 },1000);
             }
         }
-
-        function videoLoopControl(action) {
+        let videoLoopControl = (action) => {
             switch (action) {
                 case "start":
                     loopVideoSwitch = true;

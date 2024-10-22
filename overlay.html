@@ -74,6 +74,20 @@
             vidDiv.classList.add("hide");
         }
     };
+    let echoTimeout = 35; // ms
+    let echo = (count, audioFilename) => {
+        if (count <= 0) {
+            console.log("echo loop finished");
+            return
+        }
+        let na = new Audio(`${assetUrl}${audioFilename}`);
+        playingAudio.push(na);
+        na.playbackRate = audioPlaybackRate;
+        na.volume = audioVol / 2.3;
+        na.play();
+        console.log(`Echo: ${count} ${audioFilename}`);
+        setTimeout(echo.bind(this, count - 1, audioFilename), echoTimeout);
+    };
     let processControlMessage = (msg) => {
         //console.log(msg);
         let jd;
@@ -135,6 +149,14 @@
                 break;
             case "audio":
                 switch (key) {
+                    case "echoDelay":
+                        console.log(`echoDelay: ${value}`);
+                        echoTimeout = value;
+                        break;
+                    case "echo":
+                        console.log(`echo: ${value}`);
+                        echo(5, value);
+                        break;
                     case "play":
                         let na = new Audio(`${assetUrl}${value}`);
                         playingAudio.push(na);
@@ -184,7 +206,6 @@
                 break;
         }
     };
-
     let reportError = (info, error) => {
         console.log(info, error);
         cws.send(JSON.stringify({a: "error", k: info, v: error}));
