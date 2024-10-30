@@ -34,7 +34,7 @@ var (
 	controlLink            string
 	overlayLink            string
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
-	version                = "265.703.618"
+	version                = "1"
 )
 
 type Server struct {

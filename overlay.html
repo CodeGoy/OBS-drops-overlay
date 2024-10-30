@@ -39,7 +39,7 @@
 </head>
 <body>
 <div id="videoDiv" class="hide">
-    <video id="videoEm" src="" onended="videoControl('', false)"></video>
+    <video id="videoEm" src="" onended="videoControl('', false);isVideoEnded = true;videoEnded()"></video>
 </div>
 <script>
     console.log("Version: {{ .Version }}");
@@ -48,48 +48,60 @@
     let assetUrl = `http://${host}/assets?file=`
     let cws;
     let connectionStatus = false;
+    let echoLoopCount = 7;
     let playingAudio = [];
+    let playingAudioCount = 0;
     let playingMusic;
     let audioVol = 0.8;
     let audioPlaybackRate = 1.0;
     let videoPlaybackRate = 1.0;
+    let isVideoEnded = false;
     let musicVol = 0.2;
     let videoVol = 0.8;
+    let videoPlayerState = "ready";
     let vidDiv = document.getElementById("videoDiv");
     let vid = document.getElementById("videoEm");
     let videoControl = (data, show) => {
-        if (data.length > 0) {
+        console.log(`videoControl: ${data} -> ${show}`);
+        if (data !== "") {
+            console.log(`videoControl: ${data}`);
             vid.src = data;
         }
         if (show) {
+            isVideoEnded = false;
             vidDiv.classList.remove("hide");
             vidDiv.classList.add("show");
+            vid.currentTime = 0;
             vid.play();
             vid.playbackRate = videoPlaybackRate;
             vid.volume = videoVol;
         } else {
             vid.pause()
+            vid.currentTime = 0;
             vid.src = "";
             vidDiv.classList.remove("show");
             vidDiv.classList.add("hide");
         }
     };
     let echoTimeout = 35; // ms
-    let echo = (count, audioFilename) => {
+    let echo = (count, audioFilename, vol) => {
         if (count <= 0) {
-            console.log("echo loop finished");
             return
         }
+        let nv = vol/1.3
+        //console.log(`echo ${count}: ${nv}`);
+        setTimeout(echo.bind(this, count - 1, audioFilename, nv), echoTimeout);
         let na = new Audio(`${assetUrl}${audioFilename}`);
         playingAudio.push(na);
         na.playbackRate = audioPlaybackRate;
-        na.volume = audioVol / 2.3;
+        na.volume = nv;
         na.play();
-        console.log(`Echo: ${count} ${audioFilename}`);
-        setTimeout(echo.bind(this, count - 1, audioFilename), echoTimeout);
+        playingAudioCount++;
+        na.onended = () => {
+            playingAudioCount--;
+        }
     };
     let processControlMessage = (msg) => {
-        //console.log(msg);
         let jd;
         try {
             jd = JSON.parse(msg.data);
@@ -106,6 +118,7 @@
             case "video":
                 switch (key) {
                     case "play":
+                        console.log(`${value} play`);
                         if (`${value}`.includes("https://")||`${value}`.includes("http://")) {
                             videoControl(`${value}`, true);
                         } else {
@@ -150,12 +163,10 @@
             case "audio":
                 switch (key) {
                     case "echoDelay":
-                        console.log(`echoDelay: ${value}`);
                         echoTimeout = value;
                         break;
                     case "echo":
-                        console.log(`echo: ${value}`);
-                        echo(5, value);
+                        echo(echoLoopCount, value, audioVol);
                         break;
                     case "play":
                         let na = new Audio(`${assetUrl}${value}`);
@@ -163,11 +174,16 @@
                         na.playbackRate = audioPlaybackRate;
                         na.volume = audioVol;
                         na.play();
+                        playingAudioCount++;
+                        na.onended = () => {
+                            playingAudioCount--;
+                        }
                         break;
                     case "stop":
                         playingAudio.forEach((item) => {
                             item.pause();
                         });
+                        playingAudioCount = 0;
                         playingAudio = [];
                         break;
                 }
@@ -237,7 +253,17 @@
             console.log("Socket is closed, connecting...");
             connect();
         }
+        if (playingAudioCount === 0 && playingAudio.length > 0) {
+            console.log(`Playing Audio count ${playingAudioCount}, all audio ended`);
+            playingAudio = [];
+        }
     }, 5000);
+
+    let videoEnded = () => {
+        videoPlayerState = "ready";
+        cws.send(JSON.stringify({a: "video", k: "state", v: "ready"}));
+
+    };
     setInterval(() => {
         cws.send(JSON.stringify({a: "status", k: "connection", v: "connected"}));
         if (playingMusic != null) {
@@ -245,8 +271,18 @@
             cws.send(JSON.stringify({a: "music", k: "duration", v: playingMusic.duration}));
         }
         if (vid.currentTime > 0 && !vid.paused && !vid.ended && vid.readyState > 2) {
+            if (videoPlayerState !== "playing") {
+                cws.send(JSON.stringify({a: "video", k: "state", v: "playing"}))
+                videoPlayerState = "playing";
+            }
             cws.send(JSON.stringify({a: "video", k: "progress", v: vid.currentTime}));
             cws.send(JSON.stringify({a: "video", k: "duration", v: vid.duration}));
+        } else if (vid.paused && !vid.ended && !isVideoEnded) {
+            console.log(`${vid.src} paused ${vid.paused}`);
+            if (videoPlayerState !== "paused") {
+                videoPlayerState = "paused";
+                cws.send(JSON.stringify({a: "video", k: "state", v: "paused"}));
+            }
         }
     }, 100);
 </script>

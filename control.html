@@ -77,10 +77,9 @@
             <label for="audioVolume">Audio Volume</label><input type="range" value=1.0 step=0.01 max=1 min=0 id="audioVolume" onchange="setVolume(document.getElementById('audioVolume').value, 'audioVolume')">
             <br>
             <label for="playbackRate">playbackRate</label><input type="range" value=1.0 step=0.1 max=2.0 min=0.4 id="playbackRate" onchange="let pvr = document.getElementById('playbackRate').value;setVolume(pvr, 'playbackRate');document.getElementById('playbackRateValue').innerText = pvr"> <span id="playbackRateValue">1.0</span>   <button onclick="setVolume('1', 'playbackRate');document.getElementById('playbackRate').value = 1;document.getElementById('playbackRateValue').innerText = '1'">[1.0]</button>
-            <!-- TODO : send echo delay from an input range  -->
             <br>
             <label for="echoChecked">Echo:<input type="checkbox" id="echoChecked"></label>
-            <label for="echoDelay">Delay:<input min="15" max="50" value="25" step="1" type="range" id="echoDelay" onchange="let edv = document.getElementById('echoDelay').value;setEchoDelay(edv);document.getElementById('echoDelayValue').innerText = edv"></label>
+            <label for="echoDelay">Delay:<input min="35" max="250" value="50" step="1" type="range" id="echoDelay" onchange="let edv = document.getElementById('echoDelay').value;setEchoDelay(edv);document.getElementById('echoDelayValue').innerText = edv"></label>
             <span id="echoDelayValue"></span>
         </div>
         <div id="dropsAudio"></div>
@@ -108,6 +107,7 @@
             <button onclick="sendControlMessage('video', 'stop', '');">stop vid</button>
             <button onclick="sendVideo(document.getElementById('vid').value)">send vid</button>
             <button onclick="sendControlMessage('video', 'pr', '');">vid pause/resume</button>
+            <span id="videoPlayerState" style="color: green">Ready</span>
             <br>
             <label for="videoPlaybackRate">Video Playback Rate</label>
             <input type="range" value=1.0 step=0.2 max=2 min=0.2 id="videoPlaybackRate" onchange="let vprv = document.getElementById('videoPlaybackRate').value;setVolume(vprv, 'videoPlaybackRate');document.getElementById('videoPlaybackRateValue').innerText = vprv;">
@@ -143,6 +143,7 @@
             }
         };
         console.log("Version: {{ .Version }}");
+        // TODO : clean up vars
         let ws;
         let host = location.host;
         let overlayStatus = false;
@@ -155,9 +156,10 @@
         let videoProgressIntEm = document.getElementById("videoProgressIntEm");
         let videoProgress = document.getElementById("videoProgress");
         let videoProgressInteraction = false;
+        let videoPlayerState = document.getElementById("videoPlayerState");
         let videoDropEm = document.getElementById("dropsVideo");
-        let videoProgressDuration;
-        let videoProgressCurrent;
+        let videoProgressDuration = 0;
+        let videoProgressCurrent = 0;
         let videoLoopNext = false;
         let videoLoopTitlesEm = document.getElementById("videoLoopTitles");
         let videoLoopTitles = [];
@@ -181,7 +183,14 @@
         let timeFix = (seconds) => {
             const date = new Date(0);
             date.setSeconds(seconds);
-            return date.toISOString().substring(11, 19);
+            let rn;
+            try {
+                rn = date.toISOString().substring(19, 11);
+            } catch (e) {
+                console.log(`error: Failed to parse seconds ${seconds}: ${e}`);
+                return;
+            }
+            return rn;
         };
         let continuousPlay = (index) => {
             let position = index;
@@ -230,6 +239,24 @@
                             videoProgress.max = value;
                             videoProgressDuration = value;
                             break;
+                        case "state":
+                            videoPlayerState.innerText = value;
+                            console.log(`videoPlayerState: ${value}`);
+                            switch (value) {
+                                case "playing":
+                                    videoPlayerState.style.color = "green";
+                                    break;
+                                case "ready":
+                                    videoProgress.max = 1;
+                                    videoProgress.value = 0;
+                                    videoPlayerState.style.color = "green";
+                                    videoProgressCurrent = 0;
+                                    videoProgressDuration = 0;
+                                    break;
+                                case "paused":
+                                    videoPlayerState.style.color = "red";
+                                    break;
+                            }
                     }
                     videoProgressIntEm.innerText = `${timeFix(videoProgressCurrent)}/${timeFix(videoProgressDuration)}`;
                     break;
