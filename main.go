@@ -5,10 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/widget"
 	"github.com/gorilla/websocket"
 	"html/template"
 	"io"
@@ -22,7 +18,7 @@ import (
 
 var (
 	//go:embed upload.html
-	uploadHTML []byte
+	uploadHTML string
 	//go:embed control.html
 	controlHTML string
 	//go:embed overlay.html
@@ -34,11 +30,11 @@ var (
 	controlLink            string
 	overlayLink            string
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
-	version                = "1"
+	version                = "4"
 )
 
 type Server struct {
-	websocketUpgrayeddr         websocket.Upgrader
+	websocketUpgrayddr          websocket.Upgrader
 	overlayWebsocketConnections map[string]*websocket.Conn
 	port                        string
 	controlChan                 chan []byte
@@ -127,13 +123,13 @@ func (s *Server) start() {
 		http.ServeFile(w, r, fmt.Sprintf("%sassets/%s", assetsLocation, r.FormValue("file")))
 	})
 	http.HandleFunc("/uploadAsset", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := w.Write(uploadHTML); err != nil {
-			log.Panicf("%v\n", err)
+		if err := s.applyTemplate(uploadHTML, w); err != nil {
+			log.Fatalf("%v", err)
 		}
 	})
 	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		uploadLocation := r.FormValue("loc")
-		fmt.Printf("/upload->Method:%s\n", r.Method)
+		//fmt.Printf("/upload->Method:%s\n", r.Method)
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			log.Panicf("r.FormFile(): %v\n", err)
 		}
@@ -147,7 +143,7 @@ func (s *Server) start() {
 			}
 		}()
 		uploadTargetLocation := fmt.Sprintf("%sassets/%s/%s", assetsLocation, uploadLocation, handler.Filename)
-		fmt.Println("uploadTargetLocation", uploadTargetLocation)
+		//fmt.Println("uploadTargetLocation", uploadTargetLocation)
 		f, err := os.OpenFile(uploadTargetLocation, os.O_WRONLY|os.O_CREATE, 0666)
 		if err != nil {
 			log.Panicf("%v\n", err)
@@ -161,7 +157,7 @@ func (s *Server) start() {
 			log.Printf("%v\n", err)
 		}
 		response := fmt.Sprintf("Received File: %s", handler.Filename)
-		log.Printf(response)
+		//log.Printf(response)
 		if _, err := w.Write([]byte(response)); err != nil {
 			log.Printf("%v\n", err)
 		}
@@ -177,24 +173,24 @@ func (s *Server) start() {
 		}
 	})
 	http.HandleFunc("/overlayWS", func(w http.ResponseWriter, r *http.Request) {
-		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
-		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
+		s.websocketUpgrayddr.CheckOrigin = func(r *http.Request) bool { return true }
+		conn, err := s.websocketUpgrayddr.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
 		s.overlayWebsocketConnections[r.RemoteAddr] = conn
 		defer func() {
-			fmt.Println("closing /overlayWS websocket connection")
+			//fmt.Println("closing /overlayWS websocket connection")
 			if err := s.overlayWebsocketConnections[r.RemoteAddr].Close(); err != nil {
 				log.Printf("Error closing /overlayWS connection: %v\n", err)
 			}
 			delete(s.overlayWebsocketConnections, r.RemoteAddr)
-			fmt.Printf("websocket connections: %d -> %v\n", len(s.overlayWebsocketConnections), s.overlayWebsocketConnections)
+			//fmt.Printf("websocket connections: %d -> %v\n", len(s.overlayWebsocketConnections), s.overlayWebsocketConnections)
 		}()
 		for {
 			_, msg, err := s.overlayWebsocketConnections[r.RemoteAddr].ReadMessage()
 			if err != nil {
-				log.Printf("/overlayWS: %v\n", err)
+				//log.Printf("/overlayWS: %v\n", err)
 				if err := s.overlayWebsocketConnections[r.RemoteAddr].Close(); err != nil {
 					log.Printf("Error closing /overlayWS connection: %v\n", err)
 				}
@@ -204,14 +200,14 @@ func (s *Server) start() {
 		}
 	})
 	http.HandleFunc("/controlWS", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("controlWS: %v\n", r.RemoteAddr)
-		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
-		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
+		//fmt.Printf("controlWS: %v\n", r.RemoteAddr)
+		s.websocketUpgrayddr.CheckOrigin = func(r *http.Request) bool { return true }
+		conn, err := s.websocketUpgrayddr.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
 		defer func() {
-			fmt.Println("closing /controlWS websocket connection")
+			//fmt.Println("closing /controlWS websocket connection")
 			if err := conn.Close(); err != nil {
 				log.Printf("Error closing /controlWS connection: %v\n", err)
 			}
@@ -220,7 +216,7 @@ func (s *Server) start() {
 			for {
 				_, msg, err := conn.ReadMessage()
 				if err != nil {
-					log.Printf("/controlWS: %v\n", err)
+					//log.Printf("/controlWS: %v\n", err)
 					return
 				}
 				s.controlChan <- msg
@@ -234,7 +230,7 @@ func (s *Server) start() {
 	})
 	log.Printf("Serving @ %s %s\n", overlayLink, controlLink)
 	if err := http.ListenAndServe(":"+s.port, nil); err != nil {
-		log.Printf("Error:: listenAndServe():: %v\n", err)
+		log.Printf("listenAndServe():: %v\n", err)
 	}
 }
 
@@ -247,36 +243,12 @@ func makeDir(path string) error {
 	return nil
 }
 
-func (s *Server) systray() {
-	a := app.NewWithID("codegoy.obs.overlay")
-	version = a.Metadata().Version
-	a.SetIcon(fyne.NewStaticResource("icon", icon))
-	if desk, ok := a.(desktop.App); ok {
-		a.SetIcon(fyne.NewStaticResource("icon", icon))
-		w := a.NewWindow(fmt.Sprintf("OBS-drops-overlay v%s", version))
-		w.SetFixedSize(true)
-		m := fyne.NewMenu("links",
-			fyne.NewMenuItem("Links", func() {
-				w.Show()
-			}),
-		)
-		desk.SetSystemTrayMenu(m)
-		w.SetContent(widget.NewRichTextFromMarkdown(fmt.Sprintf(`# Links
-* [%s](%s)
-* [%s](%s)`, controlLink, controlLink, overlayLink, overlayLink)))
-		w.SetCloseIntercept(func() {
-			w.Hide()
-		})
-		a.Run()
-	}
-}
-
 func main() {
 	var port string
 	var enableGui bool
 	flag.StringVar(&port, "port", "8605", "port to listen on")
 	flag.StringVar(&assetsLocationOverride, "path", "", "override file location")
-	flag.BoolVar(&enableGui, "systray", false, "show systray (runs headless by default)")
+	flag.BoolVar(&enableGui, "systray", false, "show systray (Windows only)")
 	flag.Parse()
 	ip := func() string {
 		adders, err := net.InterfaceAddrs()
@@ -299,7 +271,7 @@ func main() {
 	controlLink = fmt.Sprintf("http://%s:%s/control", ip, port)
 	overlayLink = fmt.Sprintf("http://%s:%s/overlay", ip, port)
 	s := Server{
-		websocketUpgrayeddr:         websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
+		websocketUpgrayddr:          websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		port:                        port,
 		controlChan:                 make(chan []byte),
 		statusChan:                  make(chan []byte),
@@ -317,7 +289,7 @@ func main() {
 		go func() {
 			s.start()
 		}()
-		s.systray()
+		systray()
 	} else {
 		s.start()
 	}
