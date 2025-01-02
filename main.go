@@ -34,7 +34,7 @@ var (
 )
 
 type Server struct {
-	websocketUpgrayddr          websocket.Upgrader
+	websocketUpgrayeddr         websocket.Upgrader
 	overlayWebsocketConnections map[string]*websocket.Conn
 	port                        string
 	controlChan                 chan []byte
@@ -173,8 +173,8 @@ func (s *Server) start() {
 		}
 	})
 	http.HandleFunc("/overlayWS", func(w http.ResponseWriter, r *http.Request) {
-		s.websocketUpgrayddr.CheckOrigin = func(r *http.Request) bool { return true }
-		conn, err := s.websocketUpgrayddr.Upgrade(w, r, nil)
+		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
+		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
@@ -201,8 +201,8 @@ func (s *Server) start() {
 	})
 	http.HandleFunc("/controlWS", func(w http.ResponseWriter, r *http.Request) {
 		//fmt.Printf("controlWS: %v\n", r.RemoteAddr)
-		s.websocketUpgrayddr.CheckOrigin = func(r *http.Request) bool { return true }
-		conn, err := s.websocketUpgrayddr.Upgrade(w, r, nil)
+		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
+		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
@@ -271,7 +271,7 @@ func main() {
 	controlLink = fmt.Sprintf("http://%s:%s/control", ip, port)
 	overlayLink = fmt.Sprintf("http://%s:%s/overlay", ip, port)
 	s := Server{
-		websocketUpgrayddr:          websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
+		websocketUpgrayeddr:         websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		port:                        port,
 		controlChan:                 make(chan []byte),
 		statusChan:                  make(chan []byte),
@@ -285,7 +285,7 @@ func main() {
 		assetsLocation = assetsLocationOverride
 	}
 	log.Printf("Starting obs-drops-overlay v%s\n", version)
-	if enableGui {
+	if enableGui && runtime.GOOS == "windows" {
 		go func() {
 			s.start()
 		}()
