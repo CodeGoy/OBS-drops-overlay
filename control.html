@@ -138,7 +138,6 @@
         <div id="music"></div>
     </div>
     <script>
-        // TODO : midi device select, midi key bind to button or input
         let testOverlay = () => {
             if (!document.getElementById('test')) {
                 console.log("opening test frame");
@@ -458,7 +457,6 @@ if (musicAnnounce.checked) {
                 videoRepeat = false;
                 ws.send(JSON.stringify({a: "video", k: "loop", v: "false"}));
             }
-
         }
         let loopVideoSwitch = false;
         let playLoopVideo = (index) => {
@@ -531,7 +529,6 @@ if (musicAnnounce.checked) {
                 let input = entry[1];
                 midiDevices.push(input)
                 ms.insertAdjacentHTML("beforeend", `<div><button onclick="setMidiDevice('${input.name}');document.getElementById('midiSelect').remove()">${input.name}</button></div>`)
-                console.log(`Device Found: ${input.name} (Manufacturer: ${input.manufacturer})`);
             }
         };
         let setMidiDevice = (input) => {
@@ -546,9 +543,7 @@ if (musicAnnounce.checked) {
         }
         let keyBinds = new Map();
         function mapRange(value, inMin, inMax, outMin, outMax) {
-            let cv = (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
-            console.log(cv);
-            return cv;
+            return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
         }
         let handleMIDIMessage = (event) => {
             const key = event.data[1];
@@ -559,38 +554,45 @@ if (musicAnnounce.checked) {
                 if (targetElement && cti != null) {
                     let tagName = targetElement.tagName.toLowerCase();
                     let tagType = targetElement.type;
-                    let targetMax = parseFloat(targetElement.max);
-                    let targetMin = parseFloat(targetElement.min);
-                    console.log(tagName, tagType);
                     if (tagName === 'input' && tagType === 'range') {
-                        console.log('Element is an input range');
-                        keyBinds.set(key, (v) => {
-                            console.log(`key ${key} func call with value ${v} on range`);
-                            let tem = document.getElementById(cti);
-                            tem.value = mapRange(v, 0.0, 127.0, targetMin, targetMax);
-                            const event = new Event('change');
-                            tem.click();
-                            tem.dispatchEvent(event);
-                        });
+                        if (cti === "musicProgress" || cti === "videoProgress") {
+                            // Progress input
+                            console.log("progress element")
+                            keyBinds.set(key, (v) => {
+                                let tem = document.getElementById(cti);
+                                tem.value = mapRange(v, 0.0, 127.0,  parseFloat(targetElement.min), parseFloat(targetElement.max));
+                                const event = new Event('change');
+                                tem.click();
+                                tem.dispatchEvent(event);
+                            });
+                        } else {
+                            // Fixed Ranged input
+                            let targetMax = parseFloat(targetElement.max);
+                            let targetMin = parseFloat(targetElement.min);
+                            keyBinds.set(key, (v) => {
+                                let tem = document.getElementById(cti);
+                                tem.value = mapRange(v, 0.0, 127.0, targetMin, targetMax);
+                                const event = new Event('change');
+                                tem.click();
+                                tem.dispatchEvent(event);
+                            });
+                        }
                     } else {
+                        // Button
                         keyBinds.set(key, (v) => {
                             if (v === 0) {
                                 return;
                             }
-                            console.log(`clicking on key ${cti}`);
                             let tem = document.getElementById(cti);
                             const event = new Event('mousedown');
                             tem.dispatchEvent(event);
                         });
-                        console.log(`Button ${cti} added.`);
                     }
                 } else {
-                    console.log('Element does NOT exist');
                     return false;
                 }
                 currentTargetID = null;
             } else {
-                console.log('Key already exists: running func');
                 keyBinds.get(key)(value);
             }
         }
