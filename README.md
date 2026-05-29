@@ -17,6 +17,19 @@ Flags:
         show systray 
 
 ```
+---
+### MIDI control
+
+bind buttons and ranged inputs to MIDI controller buttons and dials
+
+#### use
+* click MIDI button
+* select MIDI controller
+* click element to bind
+* On MIDI controller: press button or rotate dial
+
+
+---
 
 ### Video player
 * provides a transparent video player
@@ -24,20 +37,25 @@ Flags:
 * remote play/pause and seek
 * control playbackRate from 0.2 - 2.0 (in 0.2 increments)
 * loads local files and urls
+---
 
 ### Video Loop
 * drop videos can be played while looping video
 * plays all videos in videoLoop directory in a loop forever
 * loop continues until stop is pressed
 
+---
+
 ### Audio player
 * plays mp3 files
 * volume control effects all playing sounds
 
+---
+
 ### Music player
 * has separate volume control
 
-### Supported Formats
+## Supported Formats
 
 | type  | format  |
 |-------|---------|
