@@ -44,9 +44,17 @@ Flags:
 | audio | mp3     |
 | video | mkv mp4 |
 
-## adding to obs
 
----
+
+## Building
+
+```bash
+git clone https://github.com/CodeGoy/OBS-drops-overlay.git
+cd OBS-drops-overlay/
+go mod tidy && go build .
+```
+
+## adding to obs
 
 Add a browser source
 
