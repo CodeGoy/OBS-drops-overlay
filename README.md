@@ -28,6 +28,9 @@ bind buttons and ranged inputs to MIDI controller buttons and dials
 * click element to bind
 * On MIDI controller: press button or rotate dial
 
+##### Note
+
+MIDI access requires a valid TLS cert or accessed from localhost ->  http://127.0.0.1:8605/control or http://localhost:8605/control 
 
 ---
 
