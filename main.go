@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"html/template"
 	"io"
 	"log"
@@ -14,14 +13,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/gorilla/websocket"
 )
 
 var (
-	//go:embed upload.html
+	//go:embed html/upload.html
 	uploadHTML string
-	//go:embed control.html
+	//go:embed html/control.html
 	controlHTML string
-	//go:embed overlay.html
+	//go:embed html/overlay.html
 	overlayHTML string
 	//go:embed Icon.png
 	icon                   []byte
@@ -30,7 +31,7 @@ var (
 	controlLink            string
 	overlayLink            string
 	mediaExt               = []string{".mp4", ".mkv", ".mp3"}
-	version                = "4"
+	version                = "5"
 )
 
 type Server struct {
@@ -50,20 +51,18 @@ type Template struct {
 }
 
 func listDir(path string) (files []string, err error) {
-	//fmt.Printf("listDir()->Path: %s\n", path)
 	var pathContents []os.DirEntry
 	if pathContents, err = os.ReadDir(path); err != nil {
 		if err := makeDir(path); err != nil {
-			log.Printf("error: makeDir(%s): %v\n", path, err)
+			log.Printf("makeDir(%s): %v\n", path, err)
 		}
-		return nil, fmt.Errorf("error reading dir %s: %v", path, err)
-	} else {
-		for _, entry := range pathContents {
-			for _, ext := range mediaExt {
-				if filepath.Ext(entry.Name()) == ext {
-					files = append(files, entry.Name())
-					break
-				}
+		return nil, fmt.Errorf("reading dir %s: %v", path, err)
+	}
+	for _, entry := range pathContents {
+		for _, ext := range mediaExt {
+			if filepath.Ext(entry.Name()) == ext {
+				files = append(files, entry.Name())
+				break
 			}
 		}
 	}
@@ -74,11 +73,11 @@ func (s *Server) applyTemplate(htmlString string, w http.ResponseWriter) error {
 	t := template.New("t")
 	if _, err := t.Parse(htmlString); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return fmt.Errorf("ERROR::t.Parse(rootHtml)::%v\n", err)
+		return fmt.Errorf("failed to parse rootHtml->t.Parse(rootHtml)::%v\n", err)
 	}
 	if err := t.Execute(w, Template{Version: version}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return fmt.Errorf("ERROR::t.Execute(w, &t)::%v\n", err)
+		return fmt.Errorf("failed to execute template->t.Execute(w, &t)::%v\n", err)
 	}
 	return nil
 }
@@ -87,15 +86,13 @@ func (s *Server) overlayMessageSender() {
 	for {
 		controlMessage := <-s.controlChan
 		if len(s.overlayWebsocketConnections) == 0 {
-			fmt.Printf("No websocket connections found, message is ignored: %s\n", controlMessage)
+			fmt.Printf("No overlay websocket connections found, message is ignored: %s\n", controlMessage)
 			continue
 		}
 		for key, value := range s.overlayWebsocketConnections {
 			if err := value.WriteMessage(1, controlMessage); err != nil {
-				log.Printf("error writing message to %s: %v\n", key, err)
-				if err := s.overlayWebsocketConnections[key].Close(); err != nil {
-					log.Printf("Error closing /overlayWS connection: %v\n", err)
-				}
+				log.Printf("failed to write message to %s: %v\n", key, err)
+				delete(s.overlayWebsocketConnections, key)
 			}
 		}
 	}
@@ -129,7 +126,6 @@ func (s *Server) start() {
 	})
 	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		uploadLocation := r.FormValue("loc")
-		//fmt.Printf("/upload->Method:%s\n", r.Method)
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			log.Panicf("r.FormFile(): %v\n", err)
 		}
@@ -142,9 +138,7 @@ func (s *Server) start() {
 				log.Panicf("%v\v", err)
 			}
 		}()
-		uploadTargetLocation := fmt.Sprintf("%sassets/%s/%s", assetsLocation, uploadLocation, handler.Filename)
-		//fmt.Println("uploadTargetLocation", uploadTargetLocation)
-		f, err := os.OpenFile(uploadTargetLocation, os.O_WRONLY|os.O_CREATE, 0666)
+		f, err := os.OpenFile(fmt.Sprintf("%sassets/%s/%s", assetsLocation, uploadLocation, handler.Filename), os.O_WRONLY|os.O_CREATE, 0666)
 		if err != nil {
 			log.Panicf("%v\n", err)
 		}
@@ -157,7 +151,6 @@ func (s *Server) start() {
 			log.Printf("%v\n", err)
 		}
 		response := fmt.Sprintf("Received File: %s", handler.Filename)
-		//log.Printf(response)
 		if _, err := w.Write([]byte(response)); err != nil {
 			log.Printf("%v\n", err)
 		}
@@ -180,17 +173,14 @@ func (s *Server) start() {
 		}
 		s.overlayWebsocketConnections[r.RemoteAddr] = conn
 		defer func() {
-			//fmt.Println("closing /overlayWS websocket connection")
 			if err := s.overlayWebsocketConnections[r.RemoteAddr].Close(); err != nil {
 				log.Printf("Error closing /overlayWS connection: %v\n", err)
 			}
 			delete(s.overlayWebsocketConnections, r.RemoteAddr)
-			//fmt.Printf("websocket connections: %d -> %v\n", len(s.overlayWebsocketConnections), s.overlayWebsocketConnections)
 		}()
 		for {
 			_, msg, err := s.overlayWebsocketConnections[r.RemoteAddr].ReadMessage()
 			if err != nil {
-				//log.Printf("/overlayWS: %v\n", err)
 				if err := s.overlayWebsocketConnections[r.RemoteAddr].Close(); err != nil {
 					log.Printf("Error closing /overlayWS connection: %v\n", err)
 				}
@@ -200,14 +190,12 @@ func (s *Server) start() {
 		}
 	})
 	http.HandleFunc("/controlWS", func(w http.ResponseWriter, r *http.Request) {
-		//fmt.Printf("controlWS: %v\n", r.RemoteAddr)
 		s.websocketUpgrayeddr.CheckOrigin = func(r *http.Request) bool { return true }
 		conn, err := s.websocketUpgrayeddr.Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
 		defer func() {
-			//fmt.Println("closing /controlWS websocket connection")
 			if err := conn.Close(); err != nil {
 				log.Printf("Error closing /controlWS connection: %v\n", err)
 			}
@@ -216,7 +204,6 @@ func (s *Server) start() {
 			for {
 				_, msg, err := conn.ReadMessage()
 				if err != nil {
-					//log.Printf("/controlWS: %v\n", err)
 					return
 				}
 				s.controlChan <- msg
