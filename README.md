@@ -32,6 +32,15 @@ bind buttons and ranged inputs to MIDI controller buttons and dials
 
 MIDI access requires a valid TLS cert or accessed from localhost ->  http://127.0.0.1:8605/control or http://localhost:8605/control 
 
+##### remote LAN server bypass (chrome, brave, edge)
+
+* in address bar ```chrome://flags/#unsafely-treat-insecure-origin-as-secure```
+* add full ip address of the server ``` http://10.0.0.10:8605 ``` to the text area
+* enable  "Insecure origins treated as secure"
+* restart browser
+
+To my knowledge firefox has no insecure bypass for IP addresses to access MIDI from a remote LAN address.
+
 ---
 
 ### Video player
@@ -64,7 +73,6 @@ MIDI access requires a valid TLS cert or accessed from localhost ->  http://127.
 |-------|---------|
 | audio | mp3     |
 | video | mkv mp4 |
-
 
 
 ## Building
