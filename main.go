@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/gorilla/websocket"
 )
@@ -232,10 +231,8 @@ func makeDir(path string) error {
 
 func main() {
 	var port string
-	var enableGui bool
 	flag.StringVar(&port, "port", "8605", "port to listen on")
 	flag.StringVar(&assetsLocationOverride, "path", "", "override file location")
-	flag.BoolVar(&enableGui, "systray", false, "show systray (Windows only)")
 	flag.Parse()
 	ip := func() string {
 		adders, err := net.InterfaceAddrs()
@@ -252,9 +249,6 @@ func main() {
 		}
 		return ""
 	}()
-	if runtime.GOOS == "windows" {
-		enableGui = true
-	}
 	controlLink = fmt.Sprintf("http://%s:%s/control", ip, port)
 	overlayLink = fmt.Sprintf("http://%s:%s/overlay", ip, port)
 	s := Server{
@@ -272,12 +266,5 @@ func main() {
 		assetsLocation = assetsLocationOverride
 	}
 	log.Printf("Starting obs-drops-overlay v%s\n", version)
-	if enableGui && runtime.GOOS == "windows" {
-		go func() {
-			s.start()
-		}()
-		systray()
-	} else {
-		s.start()
-	}
+	s.start()
 }
