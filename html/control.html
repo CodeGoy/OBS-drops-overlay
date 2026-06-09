@@ -33,11 +33,11 @@
             height: 100%
         }
         .button {
-            height: 25px;
             background-color: black;
             border: red 1px solid;
             color: white;
-            margin: 2px;
+            margin: 6px;
+            padding: 12px;
         }
         button:not(:active) {
             transition: background-color 10ms step-end;
@@ -59,6 +59,18 @@
         .controlSubDiv {
             padding-bottom: 10px;
             border: red 1px solid;
+        }
+        .tools {
+            position: fixed;
+            top: 0;
+            right: 0;
+        }
+        .toolsButton {
+            background-color: black;
+            border: red 1px solid;
+            color: white;
+            margin: 0;
+            padding: 12px;
         }
     </style>
     <title>drops-control v{{ .Version }}</title>
@@ -90,11 +102,11 @@
         <div id="videoLoopTitles"></div>
     </div>
     <div id="rightEM">
-        <div style="float: right">
-            <button class="button" onclick="midiSelectPopup();">MIDI</button>
-            <button class="button" onclick="testOverlay();">TestFrame</button>
-            <button class="button" onclick="openUpload();">Upload</button>
-            <button class="button" onclick="load();">Reload</button>
+        <div class="tools">
+            <button class="toolsButton" onclick="midiSelectPopup();">MIDI</button>
+            <button class="toolsButton" onclick="testOverlay();">TestFrame</button>
+            <button class="toolsButton" onclick="openUpload();">Upload</button>
+            <button class="toolsButton" onclick="load();">Reload</button>
         </div>
         <h1 style="margin: 0">Video</h1>
         <div id="videoControl" class="controlSubDiv">
@@ -138,6 +150,46 @@
         <div id="music"></div>
     </div>
     <script>
+        console.log("Version: {{ .Version }}");
+
+        let musicCurrentFilename = document.getElementById("musicCurrentFilename");
+        let videoProgressIntEm = document.getElementById("videoProgressIntEm");
+        let musicProgressIntEm = document.getElementById("musicProgressIntEm");
+        let connectionStatusEm = document.getElementById("connectionStatus");
+        let videoLoopTitlesEm = document.getElementById("videoLoopTitles");
+        let videoPlayerState = document.getElementById("videoPlayerState");
+        let overlayStatusEm = document.getElementById("overlayStatus");
+        let musicProgress = document.getElementById("musicProgress");
+        let videoProgress = document.getElementById("videoProgress");
+        let musicAnnounce = document.getElementById("musicAnnounce");
+        let echoChecked = document.getElementById("echoChecked");
+        let audioDropEm = document.getElementById("dropsAudio");
+        let videoDropEm = document.getElementById("dropsVideo");
+        let musicEm = document.getElementById("music");
+
+        let ws;
+        let host = location.host;
+        let overlayStatus = false;
+        let connectionStatus = false;
+        let latestOverlayConnectionTime;
+        let listUrl = `http://${host}/list?type=`;
+        let wsAddress = `ws://${host}/controlWS`;
+        let videoProgressInteraction = false;
+        let videoProgressDuration = 0;
+        let videoProgressCurrent = 0;
+        let videoRepeat = false;
+        let videoLoopNext = false;
+        let videoLoopTitles = [];
+        let videoLoopInterval = null;
+        let videoLoopPosition = 0;
+        let musicProgressInteraction;
+        let musicProgressDuration;
+        let musicProgressCurrent;
+        let musicInterval = null;
+        let audioFiles = [];
+        let next = false;
+        let loopVideoSwitch = false;
+
         let testOverlay = () => {
             if (!document.getElementById('test')) {
                 console.log("opening test frame");
@@ -181,38 +233,7 @@
             }
             return result;
         }
-        console.log("Version: {{ .Version }}");
-        let ws;
-        let host = location.host;
-        let overlayStatus = false;
-        let connectionStatus = false;
-        let latestOverlayConnectionTime;
-        let listUrl = `http://${host}/list?type=`;
-        let wsAddress = `ws://${host}/controlWS`;
-        let connectionStatusEm = document.getElementById("connectionStatus");
-        let overlayStatusEm = document.getElementById("overlayStatus");
-        let videoProgressIntEm = document.getElementById("videoProgressIntEm");
-        let videoProgress = document.getElementById("videoProgress");
-        let videoProgressInteraction = false;
-        let videoPlayerState = document.getElementById("videoPlayerState");
-        let videoDropEm = document.getElementById("dropsVideo");
-        let videoProgressDuration = 0;
-        let videoProgressCurrent = 0;
-        let videoLoopNext = false;
-        let videoLoopTitlesEm = document.getElementById("videoLoopTitles");
-        let videoLoopTitles = [];
-        let musicCurrentFilename = document.getElementById("musicCurrentFilename");
-        let musicProgressIntEm = document.getElementById("musicProgressIntEm");
-        let musicProgress = document.getElementById("musicProgress");
-        let musicAnnounce = document.getElementById("musicAnnounce");
-        let musicProgressInteraction;
-        let musicEm = document.getElementById("music");
-        let musicProgressDuration;
-        let musicProgressCurrent;
-        let musicInterval = null;
-        let audioDropEm = document.getElementById("dropsAudio");
-        let audioFiles = [];
-        let next = false;
+
         let openUpload = () => {
             document.getElementById("rightEM").insertAdjacentHTML("beforeend",`<div id="uploadDiv" style="position: fixed;right: 0;top: 0;background-color: black;width: 50%;height: 85%">
     <button onmousedown="document.getElementById('uploadDiv').remove()" style="float: right;position: fixed">close</button>
@@ -370,7 +391,6 @@
                 console.log("failed to get element");
             }
         };
-        let echoChecked = document.getElementById("echoChecked");
         let sendAudio = (url) => {
             if (echoChecked.checked) {
                 sendControlMessage("audio", "echo", url);
@@ -437,8 +457,6 @@ if (musicAnnounce.checked) {
                 console.log("error", err);
             });
         };
-        let videoLoopInterval = null;
-        let videoLoopPosition = 0;
         let playingColor = (filename) => {
             const div = document.querySelectorAll('#videoLoopTitles *');
             div.forEach(child => {
@@ -448,7 +466,6 @@ if (musicAnnounce.checked) {
             let ce = document.getElementById(rmExt)
             ce.style.color = "green";
         }
-        let videoRepeat = false;
         let setVideoRepeat = (em) => {
             if (em.checked) {
                 videoRepeat = true;
@@ -458,7 +475,6 @@ if (musicAnnounce.checked) {
                 ws.send(JSON.stringify({a: "video", k: "loop", v: "false"}));
             }
         }
-        let loopVideoSwitch = false;
         let playLoopVideo = (index) => {
             if (loopVideoSwitch) {
                 sendControlMessage('video', 'play', `videoLoop/${videoLoopTitles[index]}`)
@@ -488,6 +504,7 @@ if (musicAnnounce.checked) {
                 case "stop":
                     loopVideoSwitch = false;
                     videoLoopPosition = 0;
+                    sendControlMessage('video', 'stop', '')
                     break;
             }
         }
