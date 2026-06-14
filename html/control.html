@@ -21,6 +21,8 @@
             width: 50%;
             position: fixed;
             overflow: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
         #leftEM {
             height: 100%;
@@ -60,10 +62,22 @@
             padding-bottom: 10px;
             border: red 1px solid;
         }
+        .toolsMenuButton {
+            border: red 1px solid;
+            position: fixed;
+            right: 0;
+            top: 0;
+            z-index: 9998;
+        }
         .tools {
+            z-index: 9999;
+            width: fit-content;
             position: fixed;
             top: 0;
             right: 0;
+            height: fit-content;
+            overflow: hidden;
+            border: red 1px solid;
         }
         .toolsButton {
             background-color: black;
@@ -76,6 +90,14 @@
     <title>drops-control v{{ .Version }}</title>
 </head>
 <body>
+    <button onclick="toolsMenuToggle()" class="toolsButton toolsMenuButton">☰</button>
+    <div id="toolsMenu" class="tools" style="visibility: hidden;">
+        <button class="toolsButton" onclick="midiSelectPopup();">MIDI</button>
+        <button class="toolsButton" onclick="testOverlay();">TestFrame</button>
+        <button class="toolsButton" onclick="openUpload();">Upload</button>
+        <button class="toolsButton" onclick="load();">Reload</button>
+        <button class="toolsButton" onclick="toolsMenuToggle();">☰</button>
+    </div>
     <div id="leftEM">
         <div id="status">
             <span id="connectionStatus"></span>
@@ -102,12 +124,6 @@
         <div id="videoLoopTitles"></div>
     </div>
     <div id="rightEM">
-        <div class="tools">
-            <button class="toolsButton" onclick="midiSelectPopup();">MIDI</button>
-            <button class="toolsButton" onclick="testOverlay();">TestFrame</button>
-            <button class="toolsButton" onclick="openUpload();">Upload</button>
-            <button class="toolsButton" onclick="load();">Reload</button>
-        </div>
         <h1 style="margin: 0">Video</h1>
         <div id="videoControl" class="controlSubDiv">
             <label for="vid">videoFile/Url:</label>
@@ -139,7 +155,7 @@
             <button class="button" style="float: right" onmousedown="continuousPlay(0);">loop all</button>
             <br>
             <span id="musicCurrentFilename">Not Playing</span>
-            <button class="button" style="float: right" onmousedown="next = true;">next</button>
+            <button id="musicNextButton" class="button" style="float: right" onmousedown="next = true;">next</button>
             <br>
             <label style="float: right" for="musicAnnounce">Announce:</label><input style="float: right" type="checkbox" id="musicAnnounce">
             <label for="musicProgress">Progress:
@@ -150,6 +166,7 @@
         <div id="music"></div>
     </div>
     <script>
+        // TODO : save binds in browser storage, allow for rebinding, remove binds with dead links
         console.log("Version: {{ .Version }}");
 
         let musicCurrentFilename = document.getElementById("musicCurrentFilename");
@@ -165,6 +182,7 @@
         let echoChecked = document.getElementById("echoChecked");
         let audioDropEm = document.getElementById("dropsAudio");
         let videoDropEm = document.getElementById("dropsVideo");
+        let toolsMenu = document.getElementById('toolsMenu');
         let musicEm = document.getElementById("music");
 
         let ws;
@@ -224,6 +242,14 @@
                 console.log("testing frame already open");
             }
         };
+        let toolsMenuToggle = () => {
+            console.log(toolsMenu.style.visibility)
+            if (toolsMenu.style.visibility === "visible") {
+                toolsMenu.style.visibility = "hidden";
+            } else {
+                toolsMenu.style.visibility = "visible";
+            }
+        };
         function generateRandomString(length) {
             const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
             let result = '';
@@ -233,7 +259,6 @@
             }
             return result;
         }
-
         let openUpload = () => {
             document.getElementById("rightEM").insertAdjacentHTML("beforeend",`<div id="uploadDiv" style="position: fixed;right: 0;top: 0;background-color: black;width: 50%;height: 85%">
     <button onmousedown="document.getElementById('uploadDiv').remove()" style="float: right;position: fixed">close</button>
@@ -431,7 +456,7 @@
             let filenameExt = filename.substring(filename.length - 4);
             if (filenameExt === ".mp3") {
                 audioFiles.push(filename);
-                musicEm.insertAdjacentHTML("beforeend", `<button class="button" id="button" onmousedown="if (musicInterval !== null ) {
+                musicEm.insertAdjacentHTML("beforeend", `<button class="button" id="${generateRandomString(9)}" onmousedown="if (musicInterval !== null ) {
     clearInterval(musicInterval);
     musicInterval = null;
     continuousPlay(${n});
