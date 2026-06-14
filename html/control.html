@@ -134,16 +134,16 @@
         <div id="dropsVideo"></div>
         <h1 style="margin: 0">Music</h1>
         <div id="musicControl" class="controlSubDiv">
-            <button class="button" onmousedown="sendControlMessage('music', 'stop', '');clearInterval(musicInterval);musicInterval = null">Stop</button>
-            <label for="musicVolume">Volume</label><input type="range" value=0.2 step=0.1 max=1 min=0 id="musicVolume" onchange="setVolume(document.getElementById('musicVolume').value, 'musicVolume')">
-            <button class="button" style="float: right" onmousedown="continuousPlay(0)">loop all</button>
+            <button class="button" onmousedown="stopMusic();">Stop</button>
+            <label for="musicVolume">Volume</label><input type="range" value=0.2 step=0.1 max=1 min=0 id="musicVolume" onchange="setVolume(document.getElementById('musicVolume').value, 'musicVolume');">
+            <button class="button" style="float: right" onmousedown="continuousPlay(0);">loop all</button>
             <br>
-            <span id="musicCurrentFilename">No File playing</span>
+            <span id="musicCurrentFilename">Not Playing</span>
             <button class="button" style="float: right" onmousedown="next = true;">next</button>
             <br>
             <label style="float: right" for="musicAnnounce">Announce:</label><input style="float: right" type="checkbox" id="musicAnnounce">
             <label for="musicProgress">Progress:
-                <span id="musicProgressIntEm"></span>
+                <span id="musicProgressIntEm">00:00:00/00:00:00</span>
             </label>
             <input onmouseover="musicProgressInteraction = true" onmouseout="musicProgressInteraction = false" type="range" min=0  step=0.01 max=10 id="musicProgress" onclick="sendControlMessage('music', 'seek', document.getElementById('musicProgress').value);">
         </div>
@@ -444,6 +444,13 @@ if (musicAnnounce.checked) {
 }">${filename.substring(0, filename.lastIndexOf("."))}</button>`);
             }
         };
+        let stopMusic = () => {
+            sendControlMessage('music', 'stop', '');
+            clearInterval(musicInterval);
+            musicInterval = null;
+            musicCurrentFilename.innerText = 'Not Playing';
+            musicProgressIntEm.innerText = '00:00:00/00:00:00';
+        }
         let loadMusic = () => {
             audioFiles = [];
             fetch(`${listUrl}music`).then(response => {

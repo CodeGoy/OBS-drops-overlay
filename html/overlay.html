@@ -175,7 +175,7 @@
             case "music":
                 switch (key) {
                     case "announce":
-                        musicAnnounce.innerHTML = `<h2>${value}</h2>`;
+                        musicAnnounce.innerHTML = `<h2>${value.replaceAll("_", " ").replace("-", " - ")}</h2>`;
                         musicAnnounce.classList.remove("hide");
                         musicAnnounce.classList.add("show");
                         if (musicAnnounceTimeout !== null) {
